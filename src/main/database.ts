@@ -1,0 +1,810 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import { app } from 'electron';
+
+let db: Database.Database;
+
+const ACTIVE_FILTER = `(status = 'active' OR status IS NULL)`;
+
+export function getDbPath(): string {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'hr-database.sqlite');
+}
+
+export function initDatabase(): Database.Database {
+  const dbPath = getDbPath();
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id                    INTEGER PRIMARY KEY,
+      employee_name         TEXT NOT NULL,
+      dob                   TEXT,
+      age                   INTEGER,
+      sex                   TEXT,
+      race                  TEXT,
+      ethnicity             TEXT,
+      country_of_origin     TEXT,
+      languages_spoken      TEXT,
+      highest_education     TEXT,
+      current_department    TEXT,
+      current_position      TEXT,
+      supervisory_role      TEXT CHECK(supervisory_role IN ('Y','N')),
+      doh                   TEXT,
+      years_of_service      INTEGER,
+      starting_pay_base     REAL,
+      date_previous_raise   TEXT,
+      previous_pay_rate     REAL,
+      date_last_raise       TEXT,
+      current_pay_rate      REAL,
+      department_transfers  TEXT,
+      date_of_transfer      TEXT,
+      status                TEXT DEFAULT 'active' CHECK(status IN ('active','archived')),
+      archived_at           TEXT,
+      created_at            TEXT DEFAULT (datetime('now')),
+      updated_at            TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_department ON employees(current_department);
+  `);
+
+  try { db.exec(`ALTER TABLE employees ADD COLUMN status TEXT DEFAULT 'active'`); } catch (_) {}
+  try { db.exec(`ALTER TABLE employees ADD COLUMN archived_at TEXT`); } catch (_) {}
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_status ON employees(status);`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pay_history (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id     INTEGER NOT NULL,
+      pay_rate        REAL,
+      raise_date      TEXT,
+      department      TEXT,
+      position        TEXT,
+      change_type     TEXT DEFAULT 'raise',
+      notes           TEXT,
+      recorded_at     TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pay_history_employee ON pay_history(employee_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id     INTEGER,
+      employee_name   TEXT,
+      field_name      TEXT NOT NULL,
+      old_value       TEXT,
+      new_value       TEXT,
+      changed_at      TEXT DEFAULT (datetime('now')),
+      change_source   TEXT DEFAULT 'manual'
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_employee ON audit_log(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_changed_at ON audit_log(changed_at);
+  `);
+
+  // Migration: add employee_name to audit_log if missing
+  try { db.exec(`ALTER TABLE audit_log ADD COLUMN employee_name TEXT`); } catch (_) {}
+
+  // Migration: add photo_path column
+  try { db.exec(`ALTER TABLE employees ADD COLUMN photo_path TEXT`); } catch (_) {}
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employee_notes (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id     INTEGER NOT NULL,
+      content         TEXT NOT NULL,
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notes_employee ON employee_notes(employee_id);
+  `);
+
+  // Auto-refresh computed fields on startup
+  refreshComputedFields();
+
+  return db;
+}
+
+export function refreshComputedFields(): void {
+  // Recalculate age from dob
+  db.prepare(`
+    UPDATE employees SET age = CAST((julianday('now') - julianday(dob)) / 365.25 AS INTEGER)
+    WHERE dob IS NOT NULL
+  `).run();
+
+  // Recalculate years_of_service from doh
+  db.prepare(`
+    UPDATE employees SET years_of_service = CAST((julianday('now') - julianday(doh)) / 365.25 AS INTEGER)
+    WHERE doh IS NOT NULL
+  `).run();
+}
+
+export function getDb(): Database.Database {
+  return db;
+}
+
+export function resetDatabase(): void {
+  db.exec(`DELETE FROM employee_notes`);
+  db.exec(`DELETE FROM audit_log`);
+  db.exec(`DELETE FROM pay_history`);
+  db.exec(`DELETE FROM employees`);
+  db.exec(`VACUUM`);
+}
+
+// ── Audit Log ──
+
+export function logAuditEntry(entry: {
+  employee_id: number;
+  employee_name: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  change_source?: string;
+}) {
+  db.prepare(`
+    INSERT INTO audit_log (employee_id, employee_name, field_name, old_value, new_value, change_source)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.employee_id,
+    entry.employee_name,
+    entry.field_name,
+    entry.old_value,
+    entry.new_value,
+    entry.change_source || 'manual'
+  );
+}
+
+export function getAuditLog(employeeId: number) {
+  return db.prepare(
+    'SELECT * FROM audit_log WHERE employee_id = ? ORDER BY changed_at DESC, id DESC'
+  ).all(employeeId);
+}
+
+export function getGlobalAuditLog(limit: number = 100, offset: number = 0) {
+  return db.prepare(
+    'SELECT * FROM audit_log ORDER BY changed_at DESC, id DESC LIMIT ? OFFSET ?'
+  ).all(limit, offset);
+}
+
+export function getGlobalAuditLogCount(): number {
+  const row = db.prepare('SELECT COUNT(*) as count FROM audit_log').get() as any;
+  return row.count;
+}
+
+// ── Employee Filters ──
+
+export interface EmployeeFilters {
+  search?: string;
+  department?: string;
+  departments?: string[];
+  supervisoryRole?: string;
+  status?: 'active' | 'archived' | 'all';
+  dohFrom?: string;
+  dohTo?: string;
+  payMin?: number;
+  payMax?: number;
+  ageMin?: number;
+  ageMax?: number;
+  countryOfOrigin?: string;
+  sortBy?: string;
+  sortDir?: 'ASC' | 'DESC';
+}
+
+export function getAllEmployees(filters: EmployeeFilters = {}) {
+  let query = 'SELECT * FROM employees WHERE 1=1';
+  const params: any[] = [];
+
+  const status = filters.status || 'active';
+  if (status !== 'all') {
+    query += ' AND (status = ? OR status IS NULL)';
+    params.push(status);
+  }
+
+  if (filters.search) {
+    query += ' AND (employee_name LIKE ? OR current_position LIKE ?)';
+    const term = `%${filters.search}%`;
+    params.push(term, term);
+  }
+
+  // Multi-department filter takes priority over single department
+  if (filters.departments && filters.departments.length > 0) {
+    const placeholders = filters.departments.map(() => '?').join(', ');
+    query += ` AND current_department IN (${placeholders})`;
+    params.push(...filters.departments);
+  } else if (filters.department) {
+    query += ' AND current_department = ?';
+    params.push(filters.department);
+  }
+
+  if (filters.supervisoryRole) {
+    query += ' AND supervisory_role = ?';
+    params.push(filters.supervisoryRole);
+  }
+
+  if (filters.dohFrom) {
+    query += ' AND doh >= ?';
+    params.push(filters.dohFrom);
+  }
+  if (filters.dohTo) {
+    query += ' AND doh <= ?';
+    params.push(filters.dohTo);
+  }
+  if (filters.payMin != null) {
+    query += ' AND current_pay_rate >= ?';
+    params.push(filters.payMin);
+  }
+  if (filters.payMax != null) {
+    query += ' AND current_pay_rate <= ?';
+    params.push(filters.payMax);
+  }
+  if (filters.ageMin != null) {
+    query += ' AND age >= ?';
+    params.push(filters.ageMin);
+  }
+  if (filters.ageMax != null) {
+    query += ' AND age <= ?';
+    params.push(filters.ageMax);
+  }
+  if (filters.countryOfOrigin) {
+    query += ' AND country_of_origin = ?';
+    params.push(filters.countryOfOrigin);
+  }
+
+  const sortCol = filters.sortBy || 'employee_name';
+  const sortDir = filters.sortDir || 'ASC';
+  const allowedCols = [
+    'employee_name', 'id', 'age', 'current_department', 'current_position',
+    'years_of_service', 'current_pay_rate', 'doh', 'supervisory_role'
+  ];
+  if (allowedCols.includes(sortCol)) {
+    query += ` ORDER BY ${sortCol} ${sortDir}`;
+  } else {
+    query += ' ORDER BY employee_name ASC';
+  }
+
+  return db.prepare(query).all(...params);
+}
+
+// ── CRUD ──
+
+export function getEmployee(id: number) {
+  return db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+}
+
+export function createEmployee(data: Record<string, any>) {
+  const cols = Object.keys(data);
+  const placeholders = cols.map(() => '?').join(', ');
+  const stmt = db.prepare(
+    `INSERT INTO employees (${cols.join(', ')}) VALUES (${placeholders})`
+  );
+  const result = stmt.run(...cols.map(c => data[c]));
+  return result.lastInsertRowid;
+}
+
+export function updateEmployee(id: number, data: Record<string, any>, changeSource: string = 'manual') {
+  // Fetch old record to diff
+  const old = db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as Record<string, any> | undefined;
+
+  const sets = Object.keys(data).map(k => `${k} = ?`).join(', ');
+  const values = Object.values(data);
+  db.prepare(
+    `UPDATE employees SET ${sets}, updated_at = datetime('now') WHERE id = ?`
+  ).run(...values, id);
+
+  // Log audit entries for changed fields
+  if (old) {
+    const skipFields = ['created_at', 'updated_at', 'id'];
+    for (const [key, newVal] of Object.entries(data)) {
+      if (skipFields.includes(key)) continue;
+      const oldVal = old[key];
+      const oldStr = oldVal != null ? String(oldVal) : null;
+      const newStr = newVal != null ? String(newVal) : null;
+      if (oldStr !== newStr) {
+        logAuditEntry({
+          employee_id: id,
+          employee_name: data.employee_name || old.employee_name || '',
+          field_name: key,
+          old_value: oldStr,
+          new_value: newStr,
+          change_source: changeSource,
+        });
+      }
+    }
+  }
+}
+
+export function archiveEmployee(id: number) {
+  const emp = db.prepare('SELECT employee_name FROM employees WHERE id = ?').get(id) as any;
+  db.prepare(
+    `UPDATE employees SET status = 'archived', archived_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+  ).run(id);
+  if (emp) {
+    logAuditEntry({ employee_id: id, employee_name: emp.employee_name, field_name: 'status', old_value: 'active', new_value: 'archived', change_source: 'manual' });
+  }
+}
+
+export function restoreEmployee(id: number) {
+  const emp = db.prepare('SELECT employee_name FROM employees WHERE id = ?').get(id) as any;
+  db.prepare(
+    `UPDATE employees SET status = 'active', archived_at = NULL, updated_at = datetime('now') WHERE id = ?`
+  ).run(id);
+  if (emp) {
+    logAuditEntry({ employee_id: id, employee_name: emp.employee_name, field_name: 'status', old_value: 'archived', new_value: 'active', change_source: 'manual' });
+  }
+}
+
+export function deleteEmployee(id: number) {
+  db.prepare('DELETE FROM pay_history WHERE employee_id = ?').run(id);
+  db.prepare('DELETE FROM audit_log WHERE employee_id = ?').run(id);
+  db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+}
+
+// ── Pay History ──
+
+export function addPayHistory(entry: {
+  employee_id: number;
+  pay_rate: number | null;
+  raise_date: string | null;
+  department: string | null;
+  position: string | null;
+  change_type: string;
+  notes?: string | null;
+}) {
+  db.prepare(`
+    INSERT INTO pay_history (employee_id, pay_rate, raise_date, department, position, change_type, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(entry.employee_id, entry.pay_rate, entry.raise_date, entry.department, entry.position, entry.change_type, entry.notes || null);
+}
+
+export function getPayHistory(employeeId: number) {
+  return db.prepare(
+    'SELECT * FROM pay_history WHERE employee_id = ? ORDER BY raise_date DESC, recorded_at DESC'
+  ).all(employeeId);
+}
+
+// ── Birthday & Anniversary Alerts ──
+
+export function getUpcomingBirthdays(days: number = 30) {
+  return db.prepare(`
+    SELECT * FROM (
+      SELECT id, employee_name, dob, current_department,
+        CASE
+          WHEN strftime('%m-%d', dob) >= strftime('%m-%d', 'now')
+            THEN CAST(strftime('%j', strftime('%Y', 'now') || '-' || strftime('%m-%d', dob)) AS INTEGER)
+                 - CAST(strftime('%j', 'now') AS INTEGER)
+          ELSE CAST(strftime('%j', strftime('%Y', 'now', '+1 year') || '-' || strftime('%m-%d', dob)) AS INTEGER)
+               - CAST(strftime('%j', 'now') AS INTEGER) + 365
+        END as days_until
+      FROM employees
+      WHERE ${ACTIVE_FILTER} AND dob IS NOT NULL
+    ) WHERE days_until >= 0 AND days_until <= ?
+    ORDER BY days_until ASC
+  `).all(days);
+}
+
+export function getUpcomingAnniversaries(days: number = 30) {
+  return db.prepare(`
+    SELECT * FROM (
+      SELECT id, employee_name, doh, current_department, years_of_service,
+        CAST(strftime('%Y', 'now') AS INTEGER) - CAST(strftime('%Y', doh) AS INTEGER) +
+          CASE WHEN strftime('%m-%d', doh) > strftime('%m-%d', 'now') THEN 0 ELSE 1 END as next_years,
+        CASE
+          WHEN strftime('%m-%d', doh) >= strftime('%m-%d', 'now')
+            THEN CAST(strftime('%j', strftime('%Y', 'now') || '-' || strftime('%m-%d', doh)) AS INTEGER)
+                 - CAST(strftime('%j', 'now') AS INTEGER)
+          ELSE CAST(strftime('%j', strftime('%Y', 'now', '+1 year') || '-' || strftime('%m-%d', doh)) AS INTEGER)
+               - CAST(strftime('%j', 'now') AS INTEGER) + 365
+        END as days_until
+      FROM employees
+      WHERE ${ACTIVE_FILTER} AND doh IS NOT NULL
+    ) WHERE days_until >= 0 AND days_until <= ?
+      AND next_years IN (5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
+    ORDER BY days_until ASC
+  `).all(days);
+}
+
+// ── Dashboard Stats ──
+
+export function getDashboardStats() {
+  const totalHeadcount = db.prepare(`SELECT COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER}`).get() as any;
+  const avgTenure = db.prepare(`SELECT AVG(years_of_service) as avg FROM employees WHERE ${ACTIVE_FILTER}`).get() as any;
+  const avgPay = db.prepare(`SELECT AVG(current_pay_rate) as avg FROM employees WHERE ${ACTIVE_FILTER} AND current_pay_rate IS NOT NULL`).get() as any;
+  const departments = db.prepare(`SELECT DISTINCT current_department FROM employees WHERE ${ACTIVE_FILTER} AND current_department IS NOT NULL`).all() as any[];
+
+  const headcountByDept = db.prepare(
+    `SELECT current_department as department, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} GROUP BY current_department ORDER BY count DESC`
+  ).all();
+
+  const sexBreakdown = db.prepare(
+    `SELECT sex, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND sex IS NOT NULL GROUP BY sex`
+  ).all();
+
+  const raceBreakdown = db.prepare(
+    `SELECT race, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND race IS NOT NULL GROUP BY race`
+  ).all();
+
+  const payByDept = db.prepare(
+    `SELECT current_department as department, AVG(current_pay_rate) as avg_pay, MIN(current_pay_rate) as min_pay, MAX(current_pay_rate) as max_pay
+     FROM employees WHERE ${ACTIVE_FILTER} AND current_pay_rate IS NOT NULL
+     GROUP BY current_department ORDER BY avg_pay DESC`
+  ).all();
+
+  const tenureDistribution = db.prepare(
+    `SELECT
+      CASE
+        WHEN years_of_service <= 5 THEN '0-5'
+        WHEN years_of_service <= 10 THEN '6-10'
+        WHEN years_of_service <= 20 THEN '11-20'
+        WHEN years_of_service <= 30 THEN '21-30'
+        ELSE '31+'
+      END as bracket,
+      COUNT(*) as count
+     FROM employees WHERE ${ACTIVE_FILTER} AND years_of_service IS NOT NULL
+     GROUP BY bracket ORDER BY MIN(years_of_service)`
+  ).all();
+
+  const supervisoryBreakdown = db.prepare(
+    `SELECT supervisory_role, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND supervisory_role IS NOT NULL GROUP BY supervisory_role`
+  ).all();
+
+  const archivedCount = db.prepare(`SELECT COUNT(*) as count FROM employees WHERE status = 'archived'`).get() as any;
+
+  const countryBreakdown = db.prepare(
+    `SELECT country_of_origin as country, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND country_of_origin IS NOT NULL AND country_of_origin != '' GROUP BY country_of_origin ORDER BY count DESC`
+  ).all();
+
+  const educationBreakdown = db.prepare(
+    `SELECT highest_education as education, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND highest_education IS NOT NULL AND highest_education != '' GROUP BY highest_education ORDER BY count DESC`
+  ).all();
+
+  // Payroll summary by department: total payroll cost = sum of pay rates, plus headcount
+  const payrollByDept = db.prepare(
+    `SELECT current_department as department, COUNT(*) as headcount, SUM(current_pay_rate) as total_payroll, AVG(current_pay_rate) as avg_pay
+     FROM employees WHERE ${ACTIVE_FILTER} AND current_pay_rate IS NOT NULL
+     GROUP BY current_department ORDER BY total_payroll DESC`
+  ).all();
+
+  const totalPayroll = db.prepare(
+    `SELECT SUM(current_pay_rate) as total FROM employees WHERE ${ACTIVE_FILTER} AND current_pay_rate IS NOT NULL`
+  ).get() as any;
+
+  return {
+    totalHeadcount: totalHeadcount.count,
+    avgTenure: Math.round((avgTenure.avg || 0) * 10) / 10,
+    avgPay: Math.round((avgPay.avg || 0) * 100) / 100,
+    departmentCount: departments.length,
+    archivedCount: archivedCount.count,
+    headcountByDept, sexBreakdown, raceBreakdown, payByDept,
+    tenureDistribution, supervisoryBreakdown, countryBreakdown,
+    educationBreakdown, payrollByDept,
+    totalPayroll: Math.round((totalPayroll.total || 0) * 100) / 100,
+  };
+}
+
+export function getDepartments(): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT current_department FROM employees WHERE ${ACTIVE_FILTER} AND current_department IS NOT NULL ORDER BY current_department`
+  ).all() as any[];
+  return rows.map(r => r.current_department);
+}
+
+export function getCountries(): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT country_of_origin FROM employees WHERE ${ACTIVE_FILTER} AND country_of_origin IS NOT NULL ORDER BY country_of_origin`
+  ).all() as any[];
+  return rows.map(r => r.country_of_origin);
+}
+
+export function getRaces(): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT race FROM employees WHERE race IS NOT NULL AND race != '' ORDER BY race`
+  ).all() as any[];
+  return rows.map(r => r.race);
+}
+
+export function getEthnicities(): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT ethnicity FROM employees WHERE ethnicity IS NOT NULL AND ethnicity != '' ORDER BY ethnicity`
+  ).all() as any[];
+  return rows.map(r => r.ethnicity);
+}
+
+export function getLanguages(): string[] {
+  const rows = db.prepare(
+    `SELECT languages_spoken FROM employees WHERE languages_spoken IS NOT NULL AND languages_spoken != ''`
+  ).all() as any[];
+  const langSet = new Set<string>();
+  for (const row of rows) {
+    const parts = row.languages_spoken.split(/[,;\/]+/).map((s: string) => s.trim()).filter(Boolean);
+    for (const lang of parts) langSet.add(lang);
+  }
+  return Array.from(langSet).sort();
+}
+
+export function getEducationLevels(): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT highest_education FROM employees WHERE highest_education IS NOT NULL AND highest_education != '' ORDER BY highest_education`
+  ).all() as any[];
+  return rows.map(r => r.highest_education);
+}
+
+// ── Language Distribution ──
+
+export function getLanguageDistribution() {
+  const rows = db.prepare(
+    `SELECT languages_spoken FROM employees WHERE ${ACTIVE_FILTER} AND languages_spoken IS NOT NULL AND languages_spoken != ''`
+  ).all() as any[];
+
+  const langMap = new Map<string, number>();
+  for (const row of rows) {
+    // languages_spoken may be comma-separated, semicolon-separated, or single
+    const langs = (row.languages_spoken as string).split(/[,;\/]+/).map((l: string) => l.trim()).filter(Boolean);
+    for (const lang of langs) {
+      langMap.set(lang, (langMap.get(lang) || 0) + 1);
+    }
+  }
+  return Array.from(langMap.entries())
+    .map(([language, count]) => ({ language, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// ── Employee Turnover ──
+
+export function getMonthlyTurnover(months: number = 12) {
+  // Get archived employees grouped by month of archived_at
+  const rows = db.prepare(`
+    SELECT strftime('%Y-%m', archived_at) as month, COUNT(*) as archived_count
+    FROM employees
+    WHERE status = 'archived' AND archived_at IS NOT NULL
+      AND archived_at >= date('now', '-' || ? || ' months')
+    GROUP BY month
+    ORDER BY month ASC
+  `).all(months);
+
+  // Get new hires grouped by month of created_at
+  const hires = db.prepare(`
+    SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as hired_count
+    FROM employees
+    WHERE created_at IS NOT NULL
+      AND created_at >= date('now', '-' || ? || ' months')
+    GROUP BY month
+    ORDER BY month ASC
+  `).all(months);
+
+  // Merge into a single array covering all months
+  const now = new Date();
+  const result: { month: string; archived: number; hired: number }[] = [];
+  const archiveMap = new Map((rows as any[]).map(r => [r.month, r.archived_count]));
+  const hireMap = new Map((hires as any[]).map(r => [r.month, r.hired_count]));
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    result.push({
+      month: key,
+      archived: archiveMap.get(key) || 0,
+      hired: hireMap.get(key) || 0,
+    });
+  }
+  return result;
+}
+
+// ── Pay Growth Analysis ──
+
+export function getPayGrowthByDepartment() {
+  return db.prepare(`
+    SELECT current_department as department,
+      AVG(starting_pay_base) as avg_starting,
+      AVG(current_pay_rate) as avg_current,
+      AVG(CASE WHEN starting_pay_base > 0 THEN ((current_pay_rate - starting_pay_base) / starting_pay_base) * 100 ELSE 0 END) as avg_growth_pct
+    FROM employees
+    WHERE ${ACTIVE_FILTER} AND starting_pay_base IS NOT NULL AND current_pay_rate IS NOT NULL AND starting_pay_base > 0
+    GROUP BY current_department
+    ORDER BY avg_growth_pct DESC
+  `).all();
+}
+
+// ── Time Since Last Raise ──
+
+export function getTimeSinceLastRaise() {
+  return db.prepare(`
+    SELECT id, employee_name, current_department, current_position, date_last_raise, current_pay_rate,
+      CAST(julianday('now') - julianday(date_last_raise) AS INTEGER) as days_since_raise
+    FROM employees
+    WHERE ${ACTIVE_FILTER} AND date_last_raise IS NOT NULL
+    ORDER BY days_since_raise DESC
+  `).all();
+}
+
+// ── Pay Equity ──
+
+export function getPayEquity() {
+  const byGender = db.prepare(`
+    SELECT sex as category, AVG(current_pay_rate) as avg_pay, COUNT(*) as count
+    FROM employees WHERE ${ACTIVE_FILTER} AND sex IS NOT NULL AND current_pay_rate IS NOT NULL
+    GROUP BY sex ORDER BY avg_pay DESC
+  `).all();
+
+  const byRace = db.prepare(`
+    SELECT race as category, AVG(current_pay_rate) as avg_pay, COUNT(*) as count
+    FROM employees WHERE ${ACTIVE_FILTER} AND race IS NOT NULL AND current_pay_rate IS NOT NULL
+    GROUP BY race ORDER BY avg_pay DESC
+  `).all();
+
+  const byEducation = db.prepare(`
+    SELECT highest_education as category, AVG(current_pay_rate) as avg_pay, COUNT(*) as count
+    FROM employees WHERE ${ACTIVE_FILTER} AND highest_education IS NOT NULL AND current_pay_rate IS NOT NULL
+    GROUP BY highest_education ORDER BY avg_pay DESC
+  `).all();
+
+  return { byGender, byRace, byEducation };
+}
+
+// ── Age Distribution ──
+
+export function getAgeDistribution() {
+  return db.prepare(`
+    SELECT
+      CASE
+        WHEN age < 25 THEN 'Under 25'
+        WHEN age < 30 THEN '25-29'
+        WHEN age < 35 THEN '30-34'
+        WHEN age < 40 THEN '35-39'
+        WHEN age < 45 THEN '40-44'
+        WHEN age < 50 THEN '45-49'
+        WHEN age < 55 THEN '50-54'
+        WHEN age < 60 THEN '55-59'
+        ELSE '60+'
+      END as bracket,
+      COUNT(*) as count
+    FROM employees WHERE ${ACTIVE_FILTER} AND age IS NOT NULL
+    GROUP BY bracket ORDER BY MIN(age)
+  `).all();
+}
+
+// ── Supervisor-to-Employee Ratio ──
+
+export function getSupervisorRatio() {
+  return db.prepare(`
+    SELECT current_department as department,
+      SUM(CASE WHEN supervisory_role = 'Y' THEN 1 ELSE 0 END) as supervisors,
+      SUM(CASE WHEN supervisory_role = 'N' OR supervisory_role IS NULL THEN 1 ELSE 0 END) as employees,
+      COUNT(*) as total,
+      ROUND(CAST(SUM(CASE WHEN supervisory_role = 'N' OR supervisory_role IS NULL THEN 1 ELSE 0 END) AS REAL) /
+        NULLIF(SUM(CASE WHEN supervisory_role = 'Y' THEN 1 ELSE 0 END), 0), 1) as ratio
+    FROM employees WHERE ${ACTIVE_FILTER} AND current_department IS NOT NULL
+    GROUP BY current_department ORDER BY ratio DESC
+  `).all();
+}
+
+// ── Average Age by Department ──
+
+export function getAvgAgeByDepartment() {
+  return db.prepare(`
+    SELECT current_department as department, ROUND(AVG(age), 1) as avg_age, MIN(age) as min_age, MAX(age) as max_age
+    FROM employees WHERE ${ACTIVE_FILTER} AND age IS NOT NULL AND current_department IS NOT NULL
+    GROUP BY current_department ORDER BY avg_age DESC
+  `).all();
+}
+
+// ── Headcount Growth Over Time ──
+
+export function getHeadcountGrowth(months: number = 12) {
+  // Get total active employees as of each month end
+  const now = new Date();
+  const result: { month: string; cumulative: number; newHires: number }[] = [];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i + 1, 0); // last day of month
+    const monthEnd = d.toISOString().split('T')[0];
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const monthStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+
+    const cumRow = db.prepare(`
+      SELECT COUNT(*) as count FROM employees
+      WHERE created_at <= ? AND (status = 'active' OR status IS NULL OR (status = 'archived' AND archived_at > ?))
+    `).get(monthEnd, monthEnd) as any;
+
+    const newRow = db.prepare(`
+      SELECT COUNT(*) as count FROM employees
+      WHERE created_at >= ? AND created_at <= ?
+    `).get(monthStart, monthEnd) as any;
+
+    result.push({ month: monthKey, cumulative: cumRow.count, newHires: newRow.count });
+  }
+  return result;
+}
+
+// ── Department Transfer Activity ──
+
+export function getDepartmentTransfers() {
+  // Get employees who have transfer records
+  const rows = db.prepare(`
+    SELECT current_department as department,
+      SUM(CASE WHEN department_transfers IS NOT NULL AND department_transfers != '' THEN 1 ELSE 0 END) as transferred,
+      COUNT(*) as total
+    FROM employees WHERE ${ACTIVE_FILTER} AND current_department IS NOT NULL
+    GROUP BY current_department ORDER BY transferred DESC
+  `).all();
+  return rows;
+}
+
+// ── Retention Rate ──
+
+export function getRetentionRate() {
+  const milestones = [1, 3, 5, 10];
+  const result: { milestone: string; total: number; retained: number; rate: number }[] = [];
+
+  for (const years of milestones) {
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - years);
+    const cutoff = cutoffDate.toISOString().split('T')[0];
+
+    // Employees hired at least N years ago
+    const totalRow = db.prepare(`
+      SELECT COUNT(*) as count FROM employees WHERE doh IS NOT NULL AND doh <= ?
+    `).get(cutoff) as any;
+
+    // Of those, how many are still active
+    const retainedRow = db.prepare(`
+      SELECT COUNT(*) as count FROM employees WHERE doh IS NOT NULL AND doh <= ? AND ${ACTIVE_FILTER}
+    `).get(cutoff) as any;
+
+    const total = totalRow.count;
+    const retained = retainedRow.count;
+    result.push({
+      milestone: `${years}+ yr${years > 1 ? 's' : ''}`,
+      total,
+      retained,
+      rate: total > 0 ? Math.round((retained / total) * 1000) / 10 : 0,
+    });
+  }
+  return result;
+}
+
+// ── Employee Notes ──
+
+export function getEmployeeNotes(employeeId: number) {
+  return db.prepare('SELECT * FROM employee_notes WHERE employee_id = ? ORDER BY created_at DESC').all(employeeId);
+}
+
+export function addEmployeeNote(employeeId: number, content: string) {
+  const result = db.prepare('INSERT INTO employee_notes (employee_id, content) VALUES (?, ?)').run(employeeId, content);
+  return result.lastInsertRowid;
+}
+
+export function updateEmployeeNote(noteId: number, content: string) {
+  db.prepare("UPDATE employee_notes SET content = ?, updated_at = datetime('now') WHERE id = ?").run(content, noteId);
+}
+
+export function deleteEmployeeNote(noteId: number) {
+  db.prepare('DELETE FROM employee_notes WHERE id = ?').run(noteId);
+}
+
+// ── Bulk Update ──
+
+export function bulkUpdateEmployees(ids: number[], data: Record<string, any>) {
+  const updateTransaction = db.transaction(() => {
+    for (const id of ids) {
+      updateEmployee(id, data, 'bulk_edit');
+    }
+  });
+  updateTransaction();
+}
+
+// ── Search Autocomplete ──
+
+export function searchEmployees(query: string, limit: number = 10) {
+  const term = `%${query}%`;
+  return db.prepare(`
+    SELECT id, employee_name, current_department, current_position, photo_path
+    FROM employees
+    WHERE ${ACTIVE_FILTER}
+      AND (employee_name LIKE ? OR current_position LIKE ? OR current_department LIKE ?)
+    ORDER BY employee_name ASC
+    LIMIT ?
+  `).all(term, term, term, limit);
+}
