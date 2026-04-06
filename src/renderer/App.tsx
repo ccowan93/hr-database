@@ -9,6 +9,9 @@ import AuditLog from './views/AuditLog';
 import Settings from './views/Settings';
 import OrgChart from './views/OrgChart';
 import ReportBuilder from './views/ReportBuilder';
+import AttendanceCalendar from './views/AttendanceCalendar';
+import TimeOffManager from './views/TimeOffManager';
+import AttendanceReports from './views/AttendanceReports';
 
 export default function App() {
   return (
@@ -19,6 +22,10 @@ export default function App() {
         <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 px-6 pb-6">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/time-tracking" element={<Navigate to="/time-tracking/calendar" replace />} />
+          <Route path="/time-tracking/calendar" element={<AttendanceCalendar />} />
+          <Route path="/time-tracking/time-off" element={<TimeOffManager />} />
+          <Route path="/time-tracking/reports" element={<AttendanceReports />} />
           <Route path="/employees" element={<EmployeeList />} />
           <Route path="/employees/:id" element={<EmployeeDetail />} />
           <Route path="/employees/new" element={<AddEmployee />} />

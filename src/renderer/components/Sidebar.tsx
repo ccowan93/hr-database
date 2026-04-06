@@ -5,6 +5,15 @@ import GlobalSearch from './GlobalSearch';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
+];
+
+const timeTrackingSubItems = [
+  { path: '/time-tracking/calendar', label: 'Calendar', icon: '📅' },
+  { path: '/time-tracking/time-off', label: 'Time Off', icon: '✋' },
+  { path: '/time-tracking/reports', label: 'Reports', icon: '📈' },
+];
+
+const navItemsAfter = [
   { path: '/employees', label: 'Employees', icon: '👥' },
   { path: '/employees/new', label: 'Add Employee', icon: '➕' },
   { path: '/audit-log', label: 'Audit Log', icon: '📋' },
@@ -15,6 +24,12 @@ const navItems = [
 export default function Sidebar() {
   const location = useLocation();
   const [employeeCount, setEmployeeCount] = useState<number>(0);
+  const isTimeTrackingActive = location.pathname.startsWith('/time-tracking');
+  const [timeTrackingOpen, setTimeTrackingOpen] = useState(isTimeTrackingActive);
+
+  useEffect(() => {
+    if (isTimeTrackingActive) setTimeTrackingOpen(true);
+  }, [isTimeTrackingActive]);
 
   useEffect(() => {
     api.getEmployeeCount().then(setEmployeeCount).catch(() => {});
@@ -54,8 +69,69 @@ export default function Sidebar() {
         <GlobalSearch />
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(item => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.path === '/'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`
+            }
+          >
+            <span>{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+
+        {/* Time Tracking expandable group */}
+        <div>
+          <button
+            onClick={() => setTimeTrackingOpen(!timeTrackingOpen)}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              isTimeTrackingActive
+                ? 'bg-blue-600/20 text-blue-300'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span>🕐</span>
+              Time Tracking
+            </div>
+            <svg
+              className={`w-4 h-4 transition-transform ${timeTrackingOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {timeTrackingOpen && (
+            <div className="ml-4 mt-1 space-y-1">
+              {timeTrackingSubItems.map(item => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
+                >
+                  <span className="text-xs">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {navItemsAfter.map(item => (
           <NavLink
             key={item.path}
             to={item.path}

@@ -2,6 +2,9 @@ import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { initDatabase } from './database';
 import { registerIpcHandlers } from './ipc-handlers';
+import { loadConfig } from './app-config';
+import { startBackupScheduler, stopBackupScheduler } from './onedrive-backup';
+import { startLocalBackupScheduler, stopLocalBackupScheduler } from './local-backup';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -35,8 +38,13 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initDatabase();
+  loadConfig();
   registerIpcHandlers();
   createWindow();
+
+  // Start backup schedulers if configured
+  startBackupScheduler();
+  startLocalBackupScheduler();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -49,4 +57,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  stopBackupScheduler();
+  stopLocalBackupScheduler();
 });

@@ -102,6 +102,65 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_notes_employee ON employee_notes(employee_id);
   `);
 
+  // ── Attendance Records (CompuTime101 imports) ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_records (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id       INTEGER,
+      employee_name_raw TEXT NOT NULL,
+      date              TEXT NOT NULL,
+      punch_in          TEXT,
+      punch_out         TEXT,
+      reg_hours         REAL DEFAULT 0,
+      ot_hours          REAL DEFAULT 0,
+      work_code         TEXT,
+      code_name         TEXT,
+      site              TEXT,
+      missing_punch     INTEGER DEFAULT 0,
+      import_batch_id   TEXT,
+      imported_at       TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_employee ON attendance_records(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_records(date);
+    CREATE INDEX IF NOT EXISTS idx_attendance_batch ON attendance_records(import_batch_id);
+  `);
+
+  // ── Time-Off Requests ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS time_off_requests (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id     INTEGER NOT NULL,
+      request_type    TEXT NOT NULL,
+      start_date      TEXT NOT NULL,
+      end_date        TEXT NOT NULL,
+      status          TEXT DEFAULT 'pending',
+      notes           TEXT,
+      reviewed_by     TEXT,
+      reviewed_at     TEXT,
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_timeoff_employee ON time_off_requests(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_timeoff_dates ON time_off_requests(start_date, end_date);
+    CREATE INDEX IF NOT EXISTS idx_timeoff_status ON time_off_requests(status);
+  `);
+
+  // ── Time-Off Balances ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS time_off_balances (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id     INTEGER NOT NULL,
+      year            INTEGER NOT NULL,
+      request_type    TEXT NOT NULL,
+      allocated_hours REAL DEFAULT 0,
+      used_hours      REAL DEFAULT 0,
+      FOREIGN KEY (employee_id) REFERENCES employees(id),
+      UNIQUE(employee_id, year, request_type)
+    );
+  `);
+
   // Auto-refresh computed fields on startup
   refreshComputedFields();
 
@@ -127,6 +186,9 @@ export function getDb(): Database.Database {
 }
 
 export function resetDatabase(): void {
+  db.exec(`DELETE FROM time_off_balances`);
+  db.exec(`DELETE FROM time_off_requests`);
+  db.exec(`DELETE FROM attendance_records`);
   db.exec(`DELETE FROM employee_notes`);
   db.exec(`DELETE FROM audit_log`);
   db.exec(`DELETE FROM pay_history`);
@@ -807,4 +869,274 @@ export function searchEmployees(query: string, limit: number = 10) {
     ORDER BY employee_name ASC
     LIMIT ?
   `).all(term, term, term, limit);
+}
+
+// ── Attendance Records ──
+
+export function matchEmployeeByName(rawName: string): { employee_id: number; employee_name: string } | null {
+  // Exact match first
+  const exact = db.prepare(
+    `SELECT id as employee_id, employee_name FROM employees WHERE ${ACTIVE_FILTER} AND employee_name = ?`
+  ).get(rawName) as any;
+  if (exact) return exact;
+
+  // Normalized match: trim, lowercase, collapse whitespace
+  const normalized = rawName.trim().toLowerCase().replace(/\s+/g, ' ');
+  const rows = db.prepare(
+    `SELECT id as employee_id, employee_name FROM employees WHERE ${ACTIVE_FILTER}`
+  ).all() as any[];
+
+  for (const row of rows) {
+    const empNorm = row.employee_name.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (empNorm === normalized) return row;
+  }
+
+  // Partial match: LIKE with wildcards
+  const likeTerm = `%${normalized}%`;
+  const partial = db.prepare(
+    `SELECT id as employee_id, employee_name FROM employees WHERE ${ACTIVE_FILTER} AND LOWER(employee_name) LIKE ? LIMIT 1`
+  ).get(likeTerm) as any;
+  if (partial) return partial;
+
+  return null;
+}
+
+export function importAttendanceBatch(
+  records: {
+    employee_id: number | null;
+    employee_name_raw: string;
+    date: string;
+    punch_in: string | null;
+    punch_out: string | null;
+    reg_hours: number;
+    ot_hours: number;
+    work_code: string | null;
+    code_name: string | null;
+    site: string | null;
+    missing_punch: number;
+  }[],
+  batchId: string
+) {
+  const stmt = db.prepare(`
+    INSERT INTO attendance_records (employee_id, employee_name_raw, date, punch_in, punch_out, reg_hours, ot_hours, work_code, code_name, site, missing_punch, import_batch_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertAll = db.transaction(() => {
+    for (const r of records) {
+      stmt.run(r.employee_id, r.employee_name_raw, r.date, r.punch_in, r.punch_out, r.reg_hours, r.ot_hours, r.work_code, r.code_name, r.site, r.missing_punch, batchId);
+    }
+  });
+  insertAll();
+}
+
+export function getAttendanceByEmployee(employeeId: number, startDate: string, endDate: string) {
+  return db.prepare(`
+    SELECT * FROM attendance_records
+    WHERE employee_id = ? AND date >= ? AND date <= ?
+    ORDER BY date ASC, punch_in ASC
+  `).all(employeeId, startDate, endDate);
+}
+
+export function getAttendanceByDepartment(department: string, startDate: string, endDate: string) {
+  return db.prepare(`
+    SELECT ar.*, e.current_department, e.current_position
+    FROM attendance_records ar
+    JOIN employees e ON ar.employee_id = e.id
+    WHERE e.current_department = ? AND ar.date >= ? AND ar.date <= ?
+    ORDER BY ar.date ASC, e.employee_name ASC
+  `).all(department, startDate, endDate);
+}
+
+export function getAttendanceSummary(filters: { employeeId?: number; department?: string; startDate: string; endDate: string }) {
+  let query = `
+    SELECT
+      COUNT(DISTINCT date) as days_present,
+      SUM(reg_hours) as total_reg_hours,
+      SUM(ot_hours) as total_ot_hours,
+      SUM(CASE WHEN missing_punch = 1 THEN 1 ELSE 0 END) as missing_punches,
+      COUNT(*) as total_records
+    FROM attendance_records ar
+  `;
+  const params: any[] = [];
+
+  if (filters.department) {
+    query += ' JOIN employees e ON ar.employee_id = e.id WHERE e.current_department = ?';
+    params.push(filters.department);
+  } else if (filters.employeeId) {
+    query += ' WHERE ar.employee_id = ?';
+    params.push(filters.employeeId);
+  } else {
+    query += ' WHERE 1=1';
+  }
+
+  query += ' AND ar.date >= ? AND ar.date <= ?';
+  params.push(filters.startDate, filters.endDate);
+
+  return db.prepare(query).get(...params);
+}
+
+export function getAttendanceImports() {
+  return db.prepare(`
+    SELECT import_batch_id, MIN(date) as start_date, MAX(date) as end_date,
+      COUNT(*) as record_count, MIN(imported_at) as imported_at
+    FROM attendance_records
+    GROUP BY import_batch_id
+    ORDER BY imported_at DESC
+  `).all();
+}
+
+export function deleteAttendanceBatch(batchId: string) {
+  db.prepare('DELETE FROM attendance_records WHERE import_batch_id = ?').run(batchId);
+}
+
+// ── Time-Off Requests ──
+
+export function createTimeOffRequest(data: {
+  employee_id: number;
+  request_type: string;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+}) {
+  const result = db.prepare(`
+    INSERT INTO time_off_requests (employee_id, request_type, start_date, end_date, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.employee_id, data.request_type, data.start_date, data.end_date, data.notes || null);
+  return result.lastInsertRowid;
+}
+
+export function updateTimeOffRequest(id: number, data: { status?: string; notes?: string; reviewed_by?: string }) {
+  const sets: string[] = ["updated_at = datetime('now')"];
+  const params: any[] = [];
+
+  if (data.status) {
+    sets.push('status = ?');
+    params.push(data.status);
+    if (data.status === 'approved' || data.status === 'denied') {
+      sets.push("reviewed_at = datetime('now')");
+    }
+  }
+  if (data.notes !== undefined) {
+    sets.push('notes = ?');
+    params.push(data.notes);
+  }
+  if (data.reviewed_by) {
+    sets.push('reviewed_by = ?');
+    params.push(data.reviewed_by);
+  }
+
+  params.push(id);
+  db.prepare(`UPDATE time_off_requests SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+}
+
+export function getTimeOffRequests(filters: {
+  employeeId?: number;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}) {
+  let query = `
+    SELECT tor.*, e.employee_name, e.current_department
+    FROM time_off_requests tor
+    JOIN employees e ON tor.employee_id = e.id
+    WHERE 1=1
+  `;
+  const params: any[] = [];
+
+  if (filters.employeeId) {
+    query += ' AND tor.employee_id = ?';
+    params.push(filters.employeeId);
+  }
+  if (filters.status) {
+    query += ' AND tor.status = ?';
+    params.push(filters.status);
+  }
+  if (filters.startDate) {
+    query += ' AND tor.end_date >= ?';
+    params.push(filters.startDate);
+  }
+  if (filters.endDate) {
+    query += ' AND tor.start_date <= ?';
+    params.push(filters.endDate);
+  }
+
+  query += ' ORDER BY tor.created_at DESC';
+  return db.prepare(query).all(...params);
+}
+
+export function getTimeOffBalances(employeeId: number, year: number) {
+  return db.prepare(
+    'SELECT * FROM time_off_balances WHERE employee_id = ? AND year = ?'
+  ).all(employeeId, year);
+}
+
+export function upsertTimeOffBalance(employeeId: number, year: number, requestType: string, allocatedHours: number) {
+  db.prepare(`
+    INSERT INTO time_off_balances (employee_id, year, request_type, allocated_hours)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(employee_id, year, request_type)
+    DO UPDATE SET allocated_hours = ?
+  `).run(employeeId, year, requestType, allocatedHours, allocatedHours);
+}
+
+// ── Attendance Reports ──
+
+export function getOvertimeReport(startDate: string, endDate: string, groupBy: 'employee' | 'department' = 'employee') {
+  if (groupBy === 'department') {
+    return db.prepare(`
+      SELECT e.current_department as name, SUM(ar.ot_hours) as total_ot, SUM(ar.reg_hours) as total_reg, COUNT(DISTINCT ar.employee_id) as employee_count
+      FROM attendance_records ar
+      JOIN employees e ON ar.employee_id = e.id
+      WHERE ar.date >= ? AND ar.date <= ?
+      GROUP BY e.current_department
+      ORDER BY total_ot DESC
+    `).all(startDate, endDate);
+  }
+  return db.prepare(`
+    SELECT ar.employee_id, e.employee_name as name, e.current_department, SUM(ar.ot_hours) as total_ot, SUM(ar.reg_hours) as total_reg, COUNT(DISTINCT ar.date) as days_worked
+    FROM attendance_records ar
+    JOIN employees e ON ar.employee_id = e.id
+    WHERE ar.date >= ? AND ar.date <= ?
+    GROUP BY ar.employee_id
+    ORDER BY total_ot DESC
+  `).all(startDate, endDate);
+}
+
+export function getAbsenteeismReport(startDate: string, endDate: string) {
+  // Get all active employees and their attendance days in the range
+  return db.prepare(`
+    SELECT e.id, e.employee_name, e.current_department,
+      COUNT(DISTINCT ar.date) as days_present,
+      (julianday(?) - julianday(?) + 1) as total_days
+    FROM employees e
+    LEFT JOIN attendance_records ar ON e.id = ar.employee_id AND ar.date >= ? AND ar.date <= ?
+    WHERE (e.status = 'active' OR e.status IS NULL)
+    GROUP BY e.id
+    ORDER BY days_present ASC
+  `).all(endDate, startDate, startDate, endDate);
+}
+
+export function getTardinessReport(startDate: string, endDate: string, threshold: string = '09:00') {
+  return db.prepare(`
+    SELECT ar.employee_id, e.employee_name, e.current_department,
+      COUNT(*) as late_count,
+      COUNT(DISTINCT ar.date) as days_late
+    FROM attendance_records ar
+    JOIN employees e ON ar.employee_id = e.id
+    WHERE ar.date >= ? AND ar.date <= ? AND ar.punch_in > ? AND ar.punch_in IS NOT NULL
+    GROUP BY ar.employee_id
+    ORDER BY late_count DESC
+  `).all(startDate, endDate, threshold);
+}
+
+export function getTimeOffUsageReport(year: number) {
+  return db.prepare(`
+    SELECT e.employee_name, e.current_department, tob.request_type,
+      tob.allocated_hours, tob.used_hours,
+      (tob.allocated_hours - tob.used_hours) as remaining_hours
+    FROM time_off_balances tob
+    JOIN employees e ON tob.employee_id = e.id
+    WHERE tob.year = ?
+    ORDER BY e.employee_name, tob.request_type
+  `).all(year);
 }

@@ -1,4 +1,5 @@
 import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote } from './types/employee';
+import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry } from './types/attendance';
 
 declare global {
   interface Window {
@@ -53,6 +54,47 @@ declare global {
       resetDatabase: () => Promise<boolean>;
       backupDatabase: () => Promise<{ success: boolean; path?: string; error?: string }>;
       restoreDatabase: () => Promise<{ success: boolean; error?: string }>;
+
+      // Attendance
+      importAttendance: () => Promise<AttendanceImportResult>;
+      getAttendance: (employeeId: number, startDate: string, endDate: string) => Promise<AttendanceRecord[]>;
+      getAttendanceByDept: (department: string, startDate: string, endDate: string) => Promise<AttendanceRecord[]>;
+      getAttendanceSummary: (filters: { employeeId?: number; department?: string; startDate: string; endDate: string }) => Promise<AttendanceSummary>;
+      getAttendanceImports: () => Promise<AttendanceImportBatch[]>;
+      deleteAttendanceBatch: (batchId: string) => Promise<boolean>;
+
+      // Time Off
+      createTimeOffRequest: (data: { employee_id: number; request_type: string; start_date: string; end_date: string; notes?: string }) => Promise<number>;
+      updateTimeOffRequest: (id: number, data: { status?: string; notes?: string; reviewed_by?: string }) => Promise<boolean>;
+      getTimeOffRequests: (filters?: { employeeId?: number; status?: string; startDate?: string; endDate?: string }) => Promise<TimeOffRequest[]>;
+      getTimeOffBalances: (employeeId: number, year: number) => Promise<TimeOffBalance[]>;
+      upsertTimeOffBalance: (employeeId: number, year: number, requestType: string, allocatedHours: number) => Promise<boolean>;
+
+      // Attendance Reports
+      getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => Promise<OvertimeReportEntry[]>;
+      getAbsenteeismReport: (startDate: string, endDate: string) => Promise<AbsenteeismReportEntry[]>;
+      getTardinessReport: (startDate: string, endDate: string, threshold?: string) => Promise<TardinessReportEntry[]>;
+      getTimeOffUsageReport: (year: number) => Promise<TimeOffUsageEntry[]>;
+
+      // OneDrive Cloud Backup
+      onedriveGetStatus: () => Promise<{ connected: boolean; accountName: string | null; lastBackup: string | null; backupFolder: string; backupIntervalHours: number; clientConfigured: boolean }>;
+      onedriveSetClientId: (clientId: string) => Promise<boolean>;
+      onedriveSignIn: () => Promise<{ success: boolean; accountName?: string; error?: string }>;
+      onedriveSignOut: () => Promise<boolean>;
+      onedriveBackupNow: () => Promise<{ success: boolean; path?: string; error?: string }>;
+      onedriveListBackups: () => Promise<{ success: boolean; files?: { name: string; id: string; lastModified: string }[]; error?: string }>;
+      onedriveRestoreBackup: (fileId: string) => Promise<{ success: boolean; error?: string }>;
+      onedriveUpdateSettings: (settings: { backupFolder?: string; backupIntervalHours?: number }) => Promise<boolean>;
+
+      // Local Backup
+      localBackupGetStatus: () => Promise<{ enabled: boolean; folder: string | null; lastBackup: string | null; intervalHours: number; keepCount: number }>;
+      localBackupChooseFolder: () => Promise<string | null>;
+      localBackupEnable: (folder: string, intervalHours: number, keepCount: number) => Promise<boolean>;
+      localBackupDisable: () => Promise<boolean>;
+      localBackupNow: () => Promise<{ success: boolean; path?: string; error?: string }>;
+      localBackupList: () => Promise<{ name: string; path: string; size: number; modified: string }[]>;
+      localBackupRestore: (backupPath: string) => Promise<{ success: boolean; error?: string }>;
+      localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => Promise<boolean>;
     };
   }
 }

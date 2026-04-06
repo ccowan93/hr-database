@@ -68,6 +68,47 @@ const electronAPI = {
   resetDatabase: () => ipcRenderer.invoke('db:reset-database'),
   backupDatabase: () => ipcRenderer.invoke('db:backup'),
   restoreDatabase: () => ipcRenderer.invoke('db:restore'),
+
+  // Attendance
+  importAttendance: () => ipcRenderer.invoke('db:import-attendance'),
+  getAttendance: (employeeId: number, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-attendance', employeeId, startDate, endDate),
+  getAttendanceByDept: (department: string, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-attendance-by-dept', department, startDate, endDate),
+  getAttendanceSummary: (filters: any) => ipcRenderer.invoke('db:get-attendance-summary', filters),
+  getAttendanceImports: () => ipcRenderer.invoke('db:get-attendance-imports'),
+  deleteAttendanceBatch: (batchId: string) => ipcRenderer.invoke('db:delete-attendance-batch', batchId),
+
+  // Time Off
+  createTimeOffRequest: (data: any) => ipcRenderer.invoke('db:create-time-off-request', data),
+  updateTimeOffRequest: (id: number, data: any) => ipcRenderer.invoke('db:update-time-off-request', id, data),
+  getTimeOffRequests: (filters?: any) => ipcRenderer.invoke('db:get-time-off-requests', filters),
+  getTimeOffBalances: (employeeId: number, year: number) => ipcRenderer.invoke('db:get-time-off-balances', employeeId, year),
+  upsertTimeOffBalance: (employeeId: number, year: number, requestType: string, allocatedHours: number) => ipcRenderer.invoke('db:upsert-time-off-balance', employeeId, year, requestType, allocatedHours),
+
+  // Attendance Reports
+  getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => ipcRenderer.invoke('db:get-overtime-report', startDate, endDate, groupBy),
+  getAbsenteeismReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-absenteeism-report', startDate, endDate),
+  getTardinessReport: (startDate: string, endDate: string, threshold?: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate, threshold),
+  getTimeOffUsageReport: (year: number) => ipcRenderer.invoke('db:get-timeoff-usage-report', year),
+
+  // OneDrive Cloud Backup
+  onedriveGetStatus: () => ipcRenderer.invoke('onedrive:get-status'),
+  onedriveSetClientId: (clientId: string) => ipcRenderer.invoke('onedrive:set-client-id', clientId),
+  onedriveSignIn: () => ipcRenderer.invoke('onedrive:sign-in'),
+  onedriveSignOut: () => ipcRenderer.invoke('onedrive:sign-out'),
+  onedriveBackupNow: () => ipcRenderer.invoke('onedrive:backup-now'),
+  onedriveListBackups: () => ipcRenderer.invoke('onedrive:list-backups'),
+  onedriveRestoreBackup: (fileId: string) => ipcRenderer.invoke('onedrive:restore-backup', fileId),
+  onedriveUpdateSettings: (settings: { backupFolder?: string; backupIntervalHours?: number }) => ipcRenderer.invoke('onedrive:update-settings', settings),
+
+  // Local Backup
+  localBackupGetStatus: () => ipcRenderer.invoke('local-backup:get-status'),
+  localBackupChooseFolder: () => ipcRenderer.invoke('local-backup:choose-folder'),
+  localBackupEnable: (folder: string, intervalHours: number, keepCount: number) => ipcRenderer.invoke('local-backup:enable', folder, intervalHours, keepCount),
+  localBackupDisable: () => ipcRenderer.invoke('local-backup:disable'),
+  localBackupNow: () => ipcRenderer.invoke('local-backup:backup-now'),
+  localBackupList: () => ipcRenderer.invoke('local-backup:list'),
+  localBackupRestore: (backupPath: string) => ipcRenderer.invoke('local-backup:restore', backupPath),
+  localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => ipcRenderer.invoke('local-backup:update-settings', settings),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

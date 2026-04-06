@@ -13,12 +13,21 @@ import {
   getAgeDistribution, getSupervisorRatio, getAvgAgeByDepartment,
   getHeadcountGrowth, getDepartmentTransfers, getRetentionRate,
   bulkUpdateEmployees, searchEmployees,
-  getRaces, getEthnicities, getLanguages, getEducationLevels
+  getRaces, getEthnicities, getLanguages, getEducationLevels,
+  getAttendanceByEmployee, getAttendanceByDepartment, getAttendanceSummary,
+  getAttendanceImports, deleteAttendanceBatch,
+  createTimeOffRequest, updateTimeOffRequest, getTimeOffRequests,
+  getTimeOffBalances, upsertTimeOffBalance,
+  getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport
 } from './database';
 import { importFromExcel } from './import-xlsx';
 import { importUpdateFromExcel } from './import-update-xlsx';
+import { importAttendanceFromExcel } from './import-attendance';
 import { exportEmployeesToXlsx } from './export-xlsx';
 import { exportEmployeePDF, exportDashboardPDF } from './export-pdf';
+import { signIn as onedriveSignIn, signOut as onedriveSignOut, uploadBackup, restoreFromOneDrive, downloadBackupFile, getOneDriveStatus, setClientId, startBackupScheduler } from './onedrive-backup';
+import { runLocalBackup, getLocalBackupStatus, listLocalBackups, restoreLocalBackup, startLocalBackupScheduler } from './local-backup';
+import { saveConfig } from './app-config';
 
 export function registerIpcHandlers() {
   // ── Employee CRUD ──
@@ -214,5 +223,85 @@ export function registerIpcHandlers() {
       try { initDatabase(); } catch (_) {}
       return { success: false, error: err.message };
     }
+  });
+
+  // ── Attendance Import ──
+  ipcMain.handle('db:import-attendance', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import CompuTime101 Attendance File',
+      filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { imported: 0, skipped: 0, unmatched: [], errors: ['Import cancelled'] };
+    return importAttendanceFromExcel(result.filePaths[0]);
+  });
+
+  // ── Attendance Queries ──
+  ipcMain.handle('db:get-attendance', (_event, employeeId: number, startDate: string, endDate: string) =>
+    getAttendanceByEmployee(employeeId, startDate, endDate));
+  ipcMain.handle('db:get-attendance-by-dept', (_event, department: string, startDate: string, endDate: string) =>
+    getAttendanceByDepartment(department, startDate, endDate));
+  ipcMain.handle('db:get-attendance-summary', (_event, filters: any) => getAttendanceSummary(filters));
+  ipcMain.handle('db:get-attendance-imports', () => getAttendanceImports());
+  ipcMain.handle('db:delete-attendance-batch', (_event, batchId: string) => { deleteAttendanceBatch(batchId); return true; });
+
+  // ── Time-Off Requests ──
+  ipcMain.handle('db:create-time-off-request', (_event, data: any) => createTimeOffRequest(data));
+  ipcMain.handle('db:update-time-off-request', (_event, id: number, data: any) => { updateTimeOffRequest(id, data); return true; });
+  ipcMain.handle('db:get-time-off-requests', (_event, filters: any) => getTimeOffRequests(filters || {}));
+  ipcMain.handle('db:get-time-off-balances', (_event, employeeId: number, year: number) => getTimeOffBalances(employeeId, year));
+  ipcMain.handle('db:upsert-time-off-balance', (_event, employeeId: number, year: number, requestType: string, allocatedHours: number) =>
+    { upsertTimeOffBalance(employeeId, year, requestType, allocatedHours); return true; });
+
+  // ── Attendance Reports ──
+  ipcMain.handle('db:get-overtime-report', (_event, startDate: string, endDate: string, groupBy: 'employee' | 'department') =>
+    getOvertimeReport(startDate, endDate, groupBy));
+  ipcMain.handle('db:get-absenteeism-report', (_event, startDate: string, endDate: string) =>
+    getAbsenteeismReport(startDate, endDate));
+  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string, threshold?: string) =>
+    getTardinessReport(startDate, endDate, threshold));
+  ipcMain.handle('db:get-timeoff-usage-report', (_event, year: number) => getTimeOffUsageReport(year));
+
+  // ── OneDrive Cloud Backup ──
+  ipcMain.handle('onedrive:get-status', () => getOneDriveStatus());
+  ipcMain.handle('onedrive:set-client-id', (_event, clientId: string) => { setClientId(clientId); return true; });
+  ipcMain.handle('onedrive:sign-in', () => onedriveSignIn());
+  ipcMain.handle('onedrive:sign-out', async () => { await onedriveSignOut(); return true; });
+  ipcMain.handle('onedrive:backup-now', () => uploadBackup());
+  ipcMain.handle('onedrive:list-backups', () => restoreFromOneDrive());
+  ipcMain.handle('onedrive:restore-backup', (_event, fileId: string) => downloadBackupFile(fileId));
+  ipcMain.handle('onedrive:update-settings', (_event, settings: { backupFolder?: string; backupIntervalHours?: number }) => {
+    saveConfig({ onedrive: settings as any });
+    startBackupScheduler();
+    return true;
+  });
+
+  // ── Local Backup ──
+  ipcMain.handle('local-backup:get-status', () => getLocalBackupStatus());
+  ipcMain.handle('local-backup:choose-folder', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Choose Local Backup Folder',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+  ipcMain.handle('local-backup:enable', (_event, folder: string, intervalHours: number, keepCount: number) => {
+    saveConfig({ localBackup: { enabled: true, folder, lastBackup: null, intervalHours, keepCount } });
+    startLocalBackupScheduler();
+    return true;
+  });
+  ipcMain.handle('local-backup:disable', () => {
+    saveConfig({ localBackup: { enabled: false, folder: null, lastBackup: null, intervalHours: 24, keepCount: 7 } });
+    startLocalBackupScheduler();
+    return true;
+  });
+  ipcMain.handle('local-backup:backup-now', () => runLocalBackup());
+  ipcMain.handle('local-backup:list', () => listLocalBackups());
+  ipcMain.handle('local-backup:restore', (_event, backupPath: string) => restoreLocalBackup(backupPath));
+  ipcMain.handle('local-backup:update-settings', (_event, settings: { intervalHours?: number; keepCount?: number }) => {
+    saveConfig({ localBackup: settings as any });
+    startLocalBackupScheduler();
+    return true;
   });
 }
