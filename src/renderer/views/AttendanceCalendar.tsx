@@ -124,6 +124,7 @@ export default function AttendanceCalendar() {
           missing_punch: record.missing_punch === 1,
           has_time_off: false,
           time_off_type: null,
+          time_off_entries: [],
           records: [record],
         });
       }
@@ -131,6 +132,12 @@ export default function AttendanceCalendar() {
 
     // Overlay approved time-off requests
     for (const req of timeOffRequests) {
+      const entry = {
+        employee_name: req.employee_name,
+        employee_id: req.employee_id,
+        request_type: req.request_type,
+        department: req.current_department,
+      };
       // Expand date range into individual days
       const start = new Date(req.start_date + 'T00:00:00');
       const end = new Date(req.end_date + 'T00:00:00');
@@ -140,6 +147,8 @@ export default function AttendanceCalendar() {
         if (existing) {
           existing.has_time_off = true;
           existing.time_off_type = req.request_type;
+          existing.time_off_entries = existing.time_off_entries || [];
+          existing.time_off_entries.push(entry);
         } else {
           map.set(dateStr, {
             present: false,
@@ -150,6 +159,7 @@ export default function AttendanceCalendar() {
             missing_punch: false,
             has_time_off: true,
             time_off_type: req.request_type,
+            time_off_entries: [entry],
             records: [],
           });
         }
@@ -456,6 +466,7 @@ export default function AttendanceCalendar() {
               <AttendanceDayDetail
                 date={selectedDate}
                 records={selectedRecords}
+                timeOffEntries={dayDataMap.get(selectedDate)?.time_off_entries || []}
                 onClose={() => setSelectedDate(null)}
                 onDeleteRecord={handleDeleteRecord}
                 onDeleteRecords={handleDeleteRecords}

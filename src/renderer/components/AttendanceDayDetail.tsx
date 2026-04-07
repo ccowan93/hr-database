@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import type { AttendanceRecord } from '../types/attendance';
 
+interface TimeOffEntry {
+  employee_name: string;
+  employee_id: number;
+  request_type: string;
+  department: string | null;
+}
+
 interface AttendanceDayDetailProps {
   date: string;
   records: AttendanceRecord[];
+  timeOffEntries?: TimeOffEntry[];
   onClose: () => void;
   onDeleteRecord?: (id: number) => Promise<void>;
   onDeleteRecords?: (ids: number[]) => Promise<void>;
 }
 
-export default function AttendanceDayDetail({ date, records, onClose, onDeleteRecord, onDeleteRecords }: AttendanceDayDetailProps) {
+export default function AttendanceDayDetail({ date, records, timeOffEntries = [], onClose, onDeleteRecord, onDeleteRecords }: AttendanceDayDetailProps) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -86,9 +94,56 @@ export default function AttendanceDayDetail({ date, records, onClose, onDeleteRe
         </button>
       </div>
 
-      {records.length === 0 ? (
+      {/* Time Off Section */}
+      {timeOffEntries.length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Time Off</h4>
+          <div className="space-y-2">
+            {timeOffEntries.map((entry, i) => (
+              <div key={i} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{entry.employee_name}</div>
+                <div className="text-xs text-blue-600 dark:text-blue-400">
+                  {entry.request_type.charAt(0).toUpperCase() + entry.request_type.slice(1).replace('_', ' ')}
+                </div>
+                {entry.department && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{entry.department}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Department overlap warning */}
+          {(() => {
+            const deptGroups = new Map<string, TimeOffEntry[]>();
+            for (const entry of timeOffEntries) {
+              if (entry.department) {
+                if (!deptGroups.has(entry.department)) deptGroups.set(entry.department, []);
+                deptGroups.get(entry.department)!.push(entry);
+              }
+            }
+            const overlaps = Array.from(deptGroups.entries()).filter(([, entries]) => entries.length > 1);
+            if (overlaps.length === 0) return null;
+            return (
+              <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  Department Overlap
+                </div>
+                {overlaps.map(([dept, entries]) => (
+                  <div key={dept} className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    <span className="font-medium">{dept}:</span> {entries.map(e => e.employee_name.split(' ')[0]).join(', ')} are all off
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {records.length === 0 && timeOffEntries.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">No attendance records for this date.</p>
-      ) : (
+      ) : records.length === 0 ? null : (
         <>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">

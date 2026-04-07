@@ -1,5 +1,12 @@
 import React from 'react';
 
+interface TimeOffEntry {
+  employee_name: string;
+  employee_id: number;
+  request_type: string;
+  department: string | null;
+}
+
 interface DayData {
   present: boolean;
   punch_in?: string | null;
@@ -9,6 +16,7 @@ interface DayData {
   missing_punch: boolean;
   has_time_off: boolean;
   time_off_type?: string | null;
+  time_off_entries: TimeOffEntry[];
   records: any[];
 }
 
@@ -120,9 +128,18 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
                       {data.ot_hours > 0 && <span className="text-orange-500 ml-1">+{data.ot_hours.toFixed(1)} OT</span>}
                     </div>
                   )}
-                  {data.has_time_off && (
-                    <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                      {data.time_off_type ? data.time_off_type.charAt(0).toUpperCase() + data.time_off_type.slice(1).replace('_', ' ') : 'Time Off'}
+                  {data.has_time_off && data.time_off_entries.length > 0 && (
+                    <div className="space-y-0.5">
+                      {data.time_off_entries.slice(0, 2).map((entry, i) => (
+                        <div key={i} className="text-[10px] font-medium text-blue-600 dark:text-blue-400 truncate">
+                          {entry.employee_name.split(' ')[0]}: {entry.request_type.charAt(0).toUpperCase() + entry.request_type.slice(1).replace('_', ' ')}
+                        </div>
+                      ))}
+                      {data.time_off_entries.length > 2 && (
+                        <div className="text-[10px] text-blue-500 dark:text-blue-300">
+                          +{data.time_off_entries.length - 2} more
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
