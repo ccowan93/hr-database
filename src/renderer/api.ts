@@ -1,5 +1,5 @@
-import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote, EmployeeFile } from './types/employee';
-import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry, ParsedAttendanceResult, ConfirmImportData } from './types/attendance';
+import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote, EmployeeFile, Shift } from './types/employee';
+import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, LeftEarlyReportEntry, LunchDurationEntry, TimeOffUsageEntry, ParsedAttendanceResult, ConfirmImportData } from './types/attendance';
 
 declare global {
   interface Window {
@@ -87,12 +87,21 @@ declare global {
       // Attendance Reports
       getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => Promise<OvertimeReportEntry[]>;
       getAbsenteeismReport: (startDate: string, endDate: string) => Promise<AbsenteeismReportEntry[]>;
-      getTardinessReport: (startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) => Promise<TardinessReportEntry[]>;
+      getTardinessReport: (startDate: string, endDate: string) => Promise<TardinessReportEntry[]>;
+      getLeftEarlyReport: (startDate: string, endDate: string) => Promise<LeftEarlyReportEntry[]>;
+      getLunchDurationReport: (startDate: string, endDate: string) => Promise<LunchDurationEntry[]>;
       getTimeOffUsageReport: (year: number) => Promise<TimeOffUsageEntry[]>;
 
-      // Shift Configuration
+      // Shift Configuration (legacy)
       getShiftConfig: () => Promise<{ dayShiftStart: string; nightShiftStart: string }>;
       saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => Promise<boolean>;
+
+      // Shifts CRUD
+      getAllShifts: () => Promise<Shift[]>;
+      getShiftById: (id: number) => Promise<Shift | undefined>;
+      createShift: (data: { shift_name: string; scheduled_in: string; scheduled_out: string; scheduled_lunch_start?: string | null; scheduled_lunch_end?: string | null }) => Promise<number>;
+      updateShift: (id: number, data: Record<string, any>) => Promise<Shift>;
+      deleteShift: (id: number) => Promise<{ success: boolean; error?: string }>;
 
       // OneDrive Cloud Backup
       onedriveGetStatus: () => Promise<{ connected: boolean; accountName: string | null; lastBackup: string | null; backupFolder: string; backupIntervalHours: number; clientConfigured: boolean }>;

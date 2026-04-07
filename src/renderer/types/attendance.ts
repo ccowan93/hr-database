@@ -137,9 +137,30 @@ export interface TardinessReportEntry {
   employee_id: number;
   employee_name: string;
   current_department: string | null;
-  shift?: string;
+  shift_name?: string;
+  scheduled_in?: string;
   late_count: number;
   days_late: number;
+}
+
+export interface LeftEarlyReportEntry {
+  employee_id: number;
+  employee_name: string;
+  current_department: string | null;
+  shift_name?: string;
+  scheduled_out?: string;
+  early_count: number;
+  days_early: number;
+}
+
+export interface LunchDurationEntry {
+  employee_id: number;
+  employee_name: string;
+  current_department: string | null;
+  date: string;
+  lunch_start: string;
+  lunch_end: string;
+  lunch_minutes: number;
 }
 
 export interface TimeOffUsageEntry {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { api } from '../api';
 
 interface UpdateInfo {
@@ -38,10 +39,23 @@ function InlineText({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-/** Simple markdown renderer for release notes using safe React elements */
+/** Detect whether text is HTML or markdown and render accordingly */
 function ReleaseNotes({ text }: { text: string }) {
   if (!text) return <p className="text-sm text-gray-500 dark:text-gray-400 italic">No release notes available.</p>;
 
+  // electron-updater returns HTML from GitHub releases; sanitize and render it
+  const isHtml = /<[a-z][\s\S]*>/i.test(text);
+  if (isHtml) {
+    const sanitized = DOMPurify.sanitize(text);
+    return (
+      <div
+        className="release-notes-html space-y-1.5 text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:text-gray-900 dark:[&_h1]:text-gray-100 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-gray-900 dark:[&_h2]:text-gray-100 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-gray-800 dark:[&_h3]:text-gray-200 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_p]:mb-2 [&_strong]:font-semibold [&_code]:px-1 [&_code]:py-0.5 [&_code]:bg-gray-100 dark:[&_code]:bg-gray-700 [&_code]:rounded [&_code]:text-xs"
+        dangerouslySetInnerHTML={{ __html: sanitized }}
+      />
+    );
+  }
+
+  // Fallback: render as markdown
   const lines = text.split('\n');
   return (
     <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">

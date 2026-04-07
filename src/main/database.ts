@@ -91,8 +91,43 @@ export function initDatabase(): Database.Database {
   // Migration: add photo_path column
   try { db.exec(`ALTER TABLE employees ADD COLUMN photo_path TEXT`); } catch (_) {}
 
-  // Migration: add shift column
+  // Migration: add shift column (legacy, kept for backward compat)
   try { db.exec(`ALTER TABLE employees ADD COLUMN shift TEXT DEFAULT 'day' CHECK(shift IN ('day','night'))`); } catch (_) {}
+
+  // ── Shifts Table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shifts (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_name            TEXT NOT NULL UNIQUE,
+      scheduled_in          TEXT NOT NULL,
+      scheduled_out         TEXT NOT NULL,
+      scheduled_lunch_start TEXT,
+      scheduled_lunch_end   TEXT,
+      created_at            TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Migration: add lunch columns to shifts if missing
+  try { db.exec(`ALTER TABLE shifts ADD COLUMN scheduled_lunch_start TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE shifts ADD COLUMN scheduled_lunch_end TEXT`); } catch (_) {}
+
+  // Seed default shifts if table is empty
+  const shiftCount = (db.prepare('SELECT COUNT(*) as c FROM shifts').get() as any).c;
+  if (shiftCount === 0) {
+    const { getConfig } = require('./app-config');
+    const cfg = getConfig();
+    const dayIn = cfg.shifts?.dayShiftStart || '07:00';
+    const nightIn = cfg.shifts?.nightShiftStart || '19:00';
+    db.prepare('INSERT INTO shifts (shift_name, scheduled_in, scheduled_out, scheduled_lunch_start, scheduled_lunch_end) VALUES (?, ?, ?, ?, ?)').run('Day', dayIn, '15:30', '11:30', '12:00');
+    db.prepare('INSERT INTO shifts (shift_name, scheduled_in, scheduled_out, scheduled_lunch_start, scheduled_lunch_end) VALUES (?, ?, ?, ?, ?)').run('Night', nightIn, '03:30', null, null);
+  }
+
+  // Migration: add shift_id column to employees
+  try { db.exec(`ALTER TABLE employees ADD COLUMN shift_id INTEGER REFERENCES shifts(id)`); } catch (_) {}
+
+  // Backfill shift_id from legacy shift column
+  db.prepare(`UPDATE employees SET shift_id = (SELECT id FROM shifts WHERE shift_name = 'Day') WHERE COALESCE(shift, 'day') = 'day' AND shift_id IS NULL`).run();
+  db.prepare(`UPDATE employees SET shift_id = (SELECT id FROM shifts WHERE shift_name = 'Night') WHERE shift = 'night' AND shift_id IS NULL`).run();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS employee_notes (
@@ -288,17 +323,17 @@ export interface EmployeeFilters {
 }
 
 export function getAllEmployees(filters: EmployeeFilters = {}) {
-  let query = 'SELECT * FROM employees WHERE 1=1';
+  let query = 'SELECT e.*, s.shift_name, s.scheduled_in, s.scheduled_out, s.scheduled_lunch_start, s.scheduled_lunch_end FROM employees e LEFT JOIN shifts s ON e.shift_id = s.id WHERE 1=1';
   const params: any[] = [];
 
   const status = filters.status || 'active';
   if (status !== 'all') {
-    query += ' AND (status = ? OR status IS NULL)';
+    query += ' AND (e.status = ? OR e.status IS NULL)';
     params.push(status);
   }
 
   if (filters.search) {
-    query += ' AND (employee_name LIKE ? OR current_position LIKE ?)';
+    query += ' AND (e.employee_name LIKE ? OR e.current_position LIKE ?)';
     const term = `%${filters.search}%`;
     params.push(term, term);
   }
@@ -306,44 +341,44 @@ export function getAllEmployees(filters: EmployeeFilters = {}) {
   // Multi-department filter takes priority over single department
   if (filters.departments && filters.departments.length > 0) {
     const placeholders = filters.departments.map(() => '?').join(', ');
-    query += ` AND current_department IN (${placeholders})`;
+    query += ` AND e.current_department IN (${placeholders})`;
     params.push(...filters.departments);
   } else if (filters.department) {
-    query += ' AND current_department = ?';
+    query += ' AND e.current_department = ?';
     params.push(filters.department);
   }
 
   if (filters.supervisoryRole) {
-    query += ' AND supervisory_role = ?';
+    query += ' AND e.supervisory_role = ?';
     params.push(filters.supervisoryRole);
   }
 
   if (filters.dohFrom) {
-    query += ' AND doh >= ?';
+    query += ' AND e.doh >= ?';
     params.push(filters.dohFrom);
   }
   if (filters.dohTo) {
-    query += ' AND doh <= ?';
+    query += ' AND e.doh <= ?';
     params.push(filters.dohTo);
   }
   if (filters.payMin != null) {
-    query += ' AND current_pay_rate >= ?';
+    query += ' AND e.current_pay_rate >= ?';
     params.push(filters.payMin);
   }
   if (filters.payMax != null) {
-    query += ' AND current_pay_rate <= ?';
+    query += ' AND e.current_pay_rate <= ?';
     params.push(filters.payMax);
   }
   if (filters.ageMin != null) {
-    query += ' AND age >= ?';
+    query += ' AND e.age >= ?';
     params.push(filters.ageMin);
   }
   if (filters.ageMax != null) {
-    query += ' AND age <= ?';
+    query += ' AND e.age <= ?';
     params.push(filters.ageMax);
   }
   if (filters.countryOfOrigin) {
-    query += ' AND country_of_origin = ?';
+    query += ' AND e.country_of_origin = ?';
     params.push(filters.countryOfOrigin);
   }
 
@@ -354,9 +389,9 @@ export function getAllEmployees(filters: EmployeeFilters = {}) {
     'years_of_service', 'current_pay_rate', 'doh', 'supervisory_role'
   ];
   if (allowedCols.includes(sortCol)) {
-    query += ` ORDER BY ${sortCol} ${sortDir}`;
+    query += ` ORDER BY e.${sortCol} ${sortDir}`;
   } else {
-    query += ' ORDER BY employee_name ASC';
+    query += ' ORDER BY e.employee_name ASC';
   }
 
   return db.prepare(query).all(...params);
@@ -365,7 +400,7 @@ export function getAllEmployees(filters: EmployeeFilters = {}) {
 // ── CRUD ──
 
 export function getEmployee(id: number) {
-  return db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+  return db.prepare('SELECT e.*, s.shift_name, s.scheduled_in, s.scheduled_out, s.scheduled_lunch_start, s.scheduled_lunch_end FROM employees e LEFT JOIN shifts s ON e.shift_id = s.id WHERE e.id = ?').get(id);
 }
 
 export function createEmployee(data: Record<string, any>) {
@@ -434,6 +469,44 @@ export function deleteEmployee(id: number) {
   db.prepare('DELETE FROM pay_history WHERE employee_id = ?').run(id);
   db.prepare('DELETE FROM audit_log WHERE employee_id = ?').run(id);
   db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+}
+
+// ── Shifts CRUD ──
+
+export function getAllShifts() {
+  return db.prepare('SELECT * FROM shifts ORDER BY shift_name').all();
+}
+
+export function getShift(id: number) {
+  return db.prepare('SELECT * FROM shifts WHERE id = ?').get(id);
+}
+
+export function createShift(data: { shift_name: string; scheduled_in: string; scheduled_out: string; scheduled_lunch_start?: string | null; scheduled_lunch_end?: string | null }) {
+  const result = db.prepare('INSERT INTO shifts (shift_name, scheduled_in, scheduled_out, scheduled_lunch_start, scheduled_lunch_end) VALUES (?, ?, ?, ?, ?)').run(
+    data.shift_name, data.scheduled_in, data.scheduled_out, data.scheduled_lunch_start ?? null, data.scheduled_lunch_end ?? null
+  );
+  return result.lastInsertRowid;
+}
+
+export function updateShift(id: number, data: Record<string, any>) {
+  const allowed = ['shift_name', 'scheduled_in', 'scheduled_out', 'scheduled_lunch_start', 'scheduled_lunch_end'];
+  const sets: string[] = [];
+  const values: any[] = [];
+  for (const key of allowed) {
+    if (data[key] !== undefined) { sets.push(`${key} = ?`); values.push(data[key]); }
+  }
+  if (sets.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE shifts SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteShift(id: number): { success: boolean; error?: string } {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM employees WHERE shift_id = ?').get(id) as any).c;
+  if (count > 0) {
+    return { success: false, error: `Cannot delete shift: ${count} employee(s) are still assigned to it.` };
+  }
+  db.prepare('DELETE FROM shifts WHERE id = ?').run(id);
+  return { success: true };
 }
 
 // ── Pay History ──
@@ -1282,27 +1355,95 @@ export function getAbsenteeismReport(startDate: string, endDate: string) {
   `).all(endDate, startDate, startDate, endDate);
 }
 
-export function getTardinessReport(startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) {
-  const { getConfig } = require('./app-config');
-  const config = getConfig();
-  const dayStart = dayThreshold || config.shifts?.dayShiftStart || '07:00';
-  const nightStart = nightThreshold || config.shifts?.nightShiftStart || '19:00';
-
+export function getTardinessReport(startDate: string, endDate: string) {
+  // For each employee+date, find the earliest punch_in (first clock-in of the day)
+  // and compare against their shift's scheduled_in
   return db.prepare(`
-    SELECT ar.employee_id, e.employee_name, e.current_department, e.shift,
+    SELECT ar.employee_id, e.employee_name, e.current_department,
+      s.shift_name, s.scheduled_in,
       COUNT(*) as late_count,
       COUNT(DISTINCT ar.date) as days_late
-    FROM attendance_records ar
+    FROM (
+      SELECT employee_id, date, MIN(punch_in) as first_punch_in
+      FROM attendance_records
+      WHERE date >= ? AND date <= ? AND punch_in IS NOT NULL
+      GROUP BY employee_id, date
+    ) ar
     JOIN employees e ON ar.employee_id = e.id
-    WHERE ar.date >= ? AND ar.date <= ?
-      AND ar.punch_in IS NOT NULL
-      AND (
-        (COALESCE(e.shift, 'day') = 'day' AND ar.punch_in > ?)
-        OR (COALESCE(e.shift, 'night') = 'night' AND ar.punch_in > ?)
-      )
+    LEFT JOIN shifts s ON e.shift_id = s.id
+    WHERE ar.first_punch_in > COALESCE(s.scheduled_in, '07:00')
     GROUP BY ar.employee_id
     ORDER BY late_count DESC
-  `).all(startDate, endDate, dayStart, nightStart);
+  `).all(startDate, endDate);
+}
+
+export function getLeftEarlyReport(startDate: string, endDate: string) {
+  // For each employee+date, find the latest punch_out (last clock-out of the day)
+  // and compare against their shift's scheduled_out
+  return db.prepare(`
+    SELECT ar.employee_id, e.employee_name, e.current_department,
+      s.shift_name, s.scheduled_out,
+      COUNT(*) as early_count,
+      COUNT(DISTINCT ar.date) as days_early
+    FROM (
+      SELECT employee_id, date, MAX(punch_out) as last_punch_out
+      FROM attendance_records
+      WHERE date >= ? AND date <= ? AND punch_out IS NOT NULL
+      GROUP BY employee_id, date
+    ) ar
+    JOIN employees e ON ar.employee_id = e.id
+    LEFT JOIN shifts s ON e.shift_id = s.id
+    WHERE s.scheduled_out IS NOT NULL
+      AND s.scheduled_out >= s.scheduled_in
+      AND ar.last_punch_out < s.scheduled_out
+    GROUP BY ar.employee_id
+    ORDER BY early_count DESC
+  `).all(startDate, endDate);
+}
+
+export function getLunchDurationReport(startDate: string, endDate: string) {
+  // For each employee+date, find pairs where punch_out is followed by punch_in (mid-day break)
+  // The lunch break is the first out->in gap within a workday
+  return db.prepare(`
+    SELECT
+      out_rec.employee_id,
+      e.employee_name,
+      e.current_department,
+      out_rec.date,
+      out_rec.punch_out as lunch_start,
+      in_rec.punch_in as lunch_end,
+      ROUND((
+        (CAST(substr(in_rec.punch_in, 1, 2) AS REAL) * 60 + CAST(substr(in_rec.punch_in, 4, 2) AS REAL))
+        - (CAST(substr(out_rec.punch_out, 1, 2) AS REAL) * 60 + CAST(substr(out_rec.punch_out, 4, 2) AS REAL))
+      ), 0) as lunch_minutes
+    FROM attendance_records out_rec
+    JOIN attendance_records in_rec
+      ON out_rec.employee_id = in_rec.employee_id
+      AND out_rec.date = in_rec.date
+      AND in_rec.punch_in > out_rec.punch_out
+      AND in_rec.punch_in IS NOT NULL
+    JOIN employees e ON out_rec.employee_id = e.id
+    WHERE out_rec.date >= ? AND out_rec.date <= ?
+      AND out_rec.punch_out IS NOT NULL
+      AND out_rec.punch_in IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_records mid
+        WHERE mid.employee_id = out_rec.employee_id
+          AND mid.date = out_rec.date
+          AND mid.punch_out IS NOT NULL
+          AND mid.punch_out > out_rec.punch_out
+          AND mid.punch_out < in_rec.punch_in
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_records mid2
+        WHERE mid2.employee_id = out_rec.employee_id
+          AND mid2.date = out_rec.date
+          AND mid2.punch_in IS NOT NULL
+          AND mid2.punch_in > out_rec.punch_out
+          AND mid2.punch_in < in_rec.punch_in
+      )
+    ORDER BY out_rec.date, e.employee_name
+  `).all(startDate, endDate);
 }
 
 export function getTimeOffUsageReport(year: number) {

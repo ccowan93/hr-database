@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { api } from '../api';
-import type { OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry } from '../types/attendance';
+import type { OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, LeftEarlyReportEntry, LunchDurationEntry, TimeOffUsageEntry } from '../types/attendance';
 
-type ReportTab = 'overtime' | 'absenteeism' | 'tardiness' | 'timeoff';
+type ReportTab = 'overtime' | 'absenteeism' | 'tardiness' | 'leftearly' | 'lunch' | 'timeoff';
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: 'overtime', label: 'Overtime Summary' },
   { key: 'absenteeism', label: 'Absenteeism' },
   { key: 'tardiness', label: 'Tardiness' },
+  { key: 'leftearly', label: 'Left Early' },
+  { key: 'lunch', label: 'Lunch Duration' },
   { key: 'timeoff', label: 'Time-Off Usage' },
 ];
 
@@ -28,27 +30,19 @@ export default function AttendanceReports() {
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [groupBy, setGroupBy] = useState<'employee' | 'department'>('employee');
   const [year, setYear] = useState(new Date().getFullYear());
-  const [dayThreshold, setDayThreshold] = useState('07:00');
-  const [nightThreshold, setNightThreshold] = useState('19:00');
 
   // Report data
   const [overtimeData, setOvertimeData] = useState<OvertimeReportEntry[]>([]);
   const [absenteeismData, setAbsenteeismData] = useState<AbsenteeismReportEntry[]>([]);
   const [tardinessData, setTardinessData] = useState<TardinessReportEntry[]>([]);
+  const [leftEarlyData, setLeftEarlyData] = useState<LeftEarlyReportEntry[]>([]);
+  const [lunchData, setLunchData] = useState<LunchDurationEntry[]>([]);
   const [timeOffData, setTimeOffData] = useState<TimeOffUsageEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load shift config on mount
-  useEffect(() => {
-    api.getShiftConfig().then((config: { dayShiftStart: string; nightShiftStart: string }) => {
-      setDayThreshold(config.dayShiftStart);
-      setNightThreshold(config.nightShiftStart);
-    }).catch(() => {});
-  }, []);
-
   useEffect(() => {
     loadReport();
-  }, [activeTab, startDate, endDate, groupBy, year, dayThreshold, nightThreshold]);
+  }, [activeTab, startDate, endDate, groupBy, year]);
 
   const loadReport = async () => {
     setLoading(true);
@@ -61,7 +55,13 @@ export default function AttendanceReports() {
           setAbsenteeismData(await api.getAbsenteeismReport(startDate, endDate));
           break;
         case 'tardiness':
-          setTardinessData(await api.getTardinessReport(startDate, endDate, dayThreshold, nightThreshold));
+          setTardinessData(await api.getTardinessReport(startDate, endDate));
+          break;
+        case 'leftearly':
+          setLeftEarlyData(await api.getLeftEarlyReport(startDate, endDate));
+          break;
+        case 'lunch':
+          setLunchData(await api.getLunchDurationReport(startDate, endDate));
           break;
         case 'timeoff':
           setTimeOffData(await api.getTimeOffUsageReport(year));
@@ -132,28 +132,6 @@ export default function AttendanceReports() {
                 </select>
               </div>
             )}
-            {activeTab === 'tardiness' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Day Shift Late After</label>
-                  <input
-                    type="time"
-                    value={dayThreshold}
-                    onChange={e => setDayThreshold(e.target.value)}
-                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Night Shift Late After</label>
-                  <input
-                    type="time"
-                    value={nightThreshold}
-                    onChange={e => setNightThreshold(e.target.value)}
-                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              </>
-            )}
           </>
         ) : (
           <div>
@@ -179,6 +157,8 @@ export default function AttendanceReports() {
           {activeTab === 'overtime' && <OvertimeReport data={overtimeData} groupBy={groupBy} />}
           {activeTab === 'absenteeism' && <AbsenteeismReport data={absenteeismData} />}
           {activeTab === 'tardiness' && <TardinessReport data={tardinessData} />}
+          {activeTab === 'leftearly' && <LeftEarlyReport data={leftEarlyData} />}
+          {activeTab === 'lunch' && <LunchReport data={lunchData} />}
           {activeTab === 'timeoff' && <TimeOffUsageReport data={timeOffData} />}
         </div>
       )}
@@ -287,9 +267,89 @@ function TardinessReport({ data }: { data: TardinessReportEntry[] }) {
         columns={[
           { key: 'employee_name', label: 'Employee' },
           { key: 'current_department', label: 'Department' },
-          { key: 'shift', label: 'Shift', format: (v: string) => (v === 'night' ? 'Night' : 'Day') },
+          { key: 'shift_name', label: 'Shift' },
+          { key: 'scheduled_in', label: 'Scheduled In' },
           { key: 'late_count', label: 'Late Arrivals', align: 'right' },
           { key: 'days_late', label: 'Days Late', align: 'right' },
+        ]}
+        data={data}
+      />
+    </>
+  );
+}
+
+function LeftEarlyReport({ data }: { data: LeftEarlyReportEntry[] }) {
+  if (data.length === 0) return <EmptyState />;
+
+  return (
+    <>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Early Departures by Employee</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.slice(0, 20)}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+            <XAxis dataKey="employee_name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={80} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Bar dataKey="early_count" name="Left Early" fill="#EF4444" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <DataTable
+        columns={[
+          { key: 'employee_name', label: 'Employee' },
+          { key: 'current_department', label: 'Department' },
+          { key: 'shift_name', label: 'Shift' },
+          { key: 'scheduled_out', label: 'Scheduled Out' },
+          { key: 'early_count', label: 'Left Early', align: 'right' },
+          { key: 'days_early', label: 'Days Early', align: 'right' },
+        ]}
+        data={data}
+      />
+    </>
+  );
+}
+
+function LunchReport({ data }: { data: LunchDurationEntry[] }) {
+  if (data.length === 0) return <EmptyState />;
+
+  // Aggregate by employee for the chart
+  const byEmployee = new Map<string, { name: string; totalMinutes: number; count: number }>();
+  for (const row of data) {
+    const existing = byEmployee.get(row.employee_name) || { name: row.employee_name, totalMinutes: 0, count: 0 };
+    existing.totalMinutes += row.lunch_minutes;
+    existing.count++;
+    byEmployee.set(row.employee_name, existing);
+  }
+  const chartData = Array.from(byEmployee.values())
+    .map(e => ({ name: e.name, avg_lunch: Math.round(e.totalMinutes / e.count) }))
+    .sort((a, b) => b.avg_lunch - a.avg_lunch)
+    .slice(0, 20);
+
+  return (
+    <>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Average Lunch Duration by Employee (minutes)</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+            <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={80} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Bar dataKey="avg_lunch" name="Avg Lunch (min)" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <DataTable
+        columns={[
+          { key: 'employee_name', label: 'Employee' },
+          { key: 'current_department', label: 'Department' },
+          { key: 'date', label: 'Date' },
+          { key: 'lunch_start', label: 'Lunch Start' },
+          { key: 'lunch_end', label: 'Lunch End' },
+          { key: 'lunch_minutes', label: 'Duration (min)', align: 'right', format: (v: number) => `${Math.round(v)}` },
         ]}
         data={data}
       />

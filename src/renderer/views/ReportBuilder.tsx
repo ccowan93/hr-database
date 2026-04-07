@@ -25,12 +25,18 @@ const ALL_COLUMNS = [
   { key: 'date_previous_raise', label: 'Date of Previous Raise', type: 'date' },
   { key: 'department_transfers', label: 'Department Transfers', type: 'text' },
   { key: 'date_of_transfer', label: 'Date of Transfer', type: 'date' },
+  { key: 'shift_name', label: 'Shift', type: 'text' },
+  { key: 'scheduled_in', label: 'Scheduled Clock In', type: 'text' },
+  { key: 'scheduled_out', label: 'Scheduled Clock Out', type: 'text' },
+  { key: 'scheduled_lunch_start', label: 'Scheduled Lunch Start', type: 'text' },
+  { key: 'scheduled_lunch_end', label: 'Scheduled Lunch End', type: 'text' },
   { key: 'status', label: 'Status', type: 'text' },
 ];
 
 const GROUP_BY_FIELDS = [
   { key: '', label: 'No Grouping' },
   { key: 'current_department', label: 'Department' },
+  { key: 'shift_name', label: 'Shift' },
   { key: 'sex', label: 'Sex' },
   { key: 'race', label: 'Race' },
   { key: 'ethnicity', label: 'Ethnicity' },

@@ -24,6 +24,7 @@ const COLUMN_MAP: Record<string, string> = {
   'Current Pay Rate': 'current_pay_rate',
   'Department Transfers': 'department_transfers',
   'Date of Transfer': 'date_of_transfer',
+  'Shift': 'shift_import',
 };
 
 const MONTHS: Record<string, string> = {
@@ -118,7 +119,8 @@ export async function importFromExcel(filePath: string): Promise<{ imported: num
   const realFields = ['starting_pay_base', 'previous_pay_rate', 'current_pay_rate'];
 
   const insertTransaction = db.transaction((dataRows: Record<string, any>[]) => {
-    const columns = Object.values(COLUMN_MAP);
+    // Exclude virtual mapping fields, add shift_id
+    const columns = [...Object.values(COLUMN_MAP).filter(c => c !== 'shift_import'), 'shift_id'];
     const placeholders = columns.map(() => '?').join(', ');
     const stmt = db.prepare(`INSERT OR REPLACE INTO employees (${columns.join(', ')}) VALUES (${placeholders})`);
 
@@ -157,6 +159,16 @@ export async function importFromExcel(filePath: string): Promise<{ imported: num
             mapped.supervisory_role = null;
           }
         }
+
+        // Resolve shift name to shift_id
+        if (mapped.shift_import) {
+          const shiftName = String(mapped.shift_import).trim();
+          const shiftRow = db.prepare('SELECT id FROM shifts WHERE LOWER(shift_name) = LOWER(?)').get(shiftName) as any;
+          if (shiftRow) {
+            mapped.shift_id = shiftRow.id;
+          }
+        }
+        delete mapped.shift_import;
 
         const values = columns.map(c => mapped[c] ?? null);
         stmt.run(...values);

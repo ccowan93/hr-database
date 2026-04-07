@@ -20,7 +20,9 @@ import {
   deleteAttendanceRecord, deleteAttendanceRecords, deleteAttendanceBatchWithAudit, getAllAttendanceRecords,
   createTimeOffRequest, updateTimeOffRequest, getTimeOffRequests,
   getTimeOffBalances, upsertTimeOffBalance,
-  getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport
+  getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport,
+  getAllShifts, getShift, createShift, updateShift, deleteShift,
+  getLeftEarlyReport, getLunchDurationReport
 } from './database';
 import { extractText } from './ocr';
 import { importFromExcel } from './import-xlsx';
@@ -330,9 +332,23 @@ export function registerIpcHandlers() {
     getOvertimeReport(startDate, endDate, groupBy));
   ipcMain.handle('db:get-absenteeism-report', (_event, startDate: string, endDate: string) =>
     getAbsenteeismReport(startDate, endDate));
-  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) =>
-    getTardinessReport(startDate, endDate, dayThreshold, nightThreshold));
+  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string) =>
+    getTardinessReport(startDate, endDate));
+  ipcMain.handle('db:get-left-early-report', (_event, startDate: string, endDate: string) =>
+    getLeftEarlyReport(startDate, endDate));
+  ipcMain.handle('db:get-lunch-duration-report', (_event, startDate: string, endDate: string) =>
+    getLunchDurationReport(startDate, endDate));
   ipcMain.handle('db:get-timeoff-usage-report', (_event, year: number) => getTimeOffUsageReport(year));
+
+  // ── Shifts CRUD ──
+  ipcMain.handle('db:get-all-shifts', () => getAllShifts());
+  ipcMain.handle('db:get-shift', (_event, id: number) => getShift(id));
+  ipcMain.handle('db:create-shift', (_event, data: { shift_name: string; scheduled_in: string; scheduled_out: string; scheduled_lunch_start?: string | null; scheduled_lunch_end?: string | null }) => createShift(data));
+  ipcMain.handle('db:update-shift', (_event, id: number, data: Record<string, any>) => {
+    updateShift(id, data);
+    return getShift(id);
+  });
+  ipcMain.handle('db:delete-shift', (_event, id: number) => deleteShift(id));
 
   // ── OneDrive Cloud Backup ──
   ipcMain.handle('onedrive:get-status', () => getOneDriveStatus());

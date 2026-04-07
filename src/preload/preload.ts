@@ -101,7 +101,9 @@ const electronAPI = {
   // Attendance Reports
   getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => ipcRenderer.invoke('db:get-overtime-report', startDate, endDate, groupBy),
   getAbsenteeismReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-absenteeism-report', startDate, endDate),
-  getTardinessReport: (startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate, dayThreshold, nightThreshold),
+  getTardinessReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate),
+  getLeftEarlyReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-left-early-report', startDate, endDate),
+  getLunchDurationReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-lunch-duration-report', startDate, endDate),
   getTimeOffUsageReport: (year: number) => ipcRenderer.invoke('db:get-timeoff-usage-report', year),
 
   // OneDrive Cloud Backup
@@ -124,9 +126,16 @@ const electronAPI = {
   localBackupRestore: (backupPath: string) => ipcRenderer.invoke('local-backup:restore', backupPath),
   localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => ipcRenderer.invoke('local-backup:update-settings', settings),
 
-  // Shift Configuration
+  // Shift Configuration (legacy)
   getShiftConfig: () => ipcRenderer.invoke('app:get-shift-config'),
   saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => ipcRenderer.invoke('app:save-shift-config', config),
+
+  // Shifts CRUD
+  getAllShifts: () => ipcRenderer.invoke('db:get-all-shifts'),
+  getShiftById: (id: number) => ipcRenderer.invoke('db:get-shift', id),
+  createShift: (data: { shift_name: string; scheduled_in: string; scheduled_out: string; scheduled_lunch_start?: string | null; scheduled_lunch_end?: string | null }) => ipcRenderer.invoke('db:create-shift', data),
+  updateShift: (id: number, data: Record<string, any>) => ipcRenderer.invoke('db:update-shift', id, data),
+  deleteShift: (id: number) => ipcRenderer.invoke('db:delete-shift', id),
 
   // App Updates
   checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),

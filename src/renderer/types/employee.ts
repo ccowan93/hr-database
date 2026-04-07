@@ -21,7 +21,13 @@ export interface Employee {
   current_pay_rate: number | null;
   department_transfers: string | null;
   date_of_transfer: string | null;
-  shift?: 'day' | 'night';
+  shift?: 'day' | 'night';  // legacy
+  shift_id?: number | null;
+  shift_name?: string | null;
+  scheduled_in?: string | null;
+  scheduled_out?: string | null;
+  scheduled_lunch_start?: string | null;
+  scheduled_lunch_end?: string | null;
   status?: 'active' | 'archived';
   archived_at?: string | null;
   photo_path?: string | null;
@@ -128,4 +134,14 @@ export interface EmployeeFile {
   ocr_text: string | null;
   uploaded_at: string;
   notes: string | null;
+}
+
+export interface Shift {
+  id: number;
+  shift_name: string;
+  scheduled_in: string;
+  scheduled_out: string;
+  scheduled_lunch_start?: string | null;
+  scheduled_lunch_end?: string | null;
+  created_at?: string;
 }
