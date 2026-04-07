@@ -1,10 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { api } from '../api';
 import GlobalSearch from './GlobalSearch';
 
 const COLLAPSED_KEY = 'hr-sidebar-collapsed';
+
+/** Animated height expand/collapse using max-height + opacity */
+function ExpandablePanel({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [maxHeight, setMaxHeight] = useState(open ? 500 : 0);
+
+  useEffect(() => {
+    if (open) {
+      // Measure actual content height for precise animation
+      const el = ref.current;
+      if (el) {
+        setMaxHeight(el.scrollHeight);
+        // After transition, set to auto so dynamic content works
+        const timer = setTimeout(() => setMaxHeight(500), 300);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      setMaxHeight(0);
+    }
+  }, [open]);
+
+  return (
+    <div
+      ref={ref}
+      className="overflow-hidden transition-all duration-300 ease-in-out"
+      style={{ maxHeight: `${maxHeight}px`, opacity: open ? 1 : 0 }}
+    >
+      <div className="ml-4 mt-1 space-y-1">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const location = useLocation();
@@ -72,7 +105,7 @@ export default function Sidebar() {
 
   // Shared class builder for nav links
   const navClass = (isActive: boolean, sub = false) =>
-    `flex items-center gap-3 px-4 ${sub ? 'py-2' : 'py-3'} rounded-lg text-sm font-medium transition-colors ${
+    `flex items-center gap-3 px-4 ${sub ? 'py-2' : 'py-3'} rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
       isActive
         ? 'bg-blue-600 text-white'
         : sub
@@ -81,32 +114,37 @@ export default function Sidebar() {
     }`;
 
   const groupClass = (active: boolean) =>
-    `w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+    `w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
       active ? 'bg-blue-600/20 text-blue-300' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
     }`;
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white flex flex-col h-full transition-all duration-200 flex-shrink-0`}>
+    <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white flex flex-col h-full transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden`}>
       {/* Header */}
       <div className="titlebar-drag pt-10 px-4 pb-4 border-b border-slate-700">
-        {collapsed ? (
-          <div className="flex justify-center titlebar-no-drag">
-            <span className="text-lg font-bold">HR</span>
+        <div className={`transition-all duration-300 ease-in-out ${collapsed ? 'flex justify-center' : 'px-2'}`}>
+          <div className="titlebar-no-drag">
+            {collapsed ? (
+              <span className="text-lg font-bold">HR</span>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold whitespace-nowrap">HR Database</h1>
+                <p className="text-slate-400 text-sm mt-1 whitespace-nowrap">{employeeCount} employees</p>
+              </>
+            )}
           </div>
-        ) : (
-          <div className="px-2">
-            <h1 className="text-xl font-bold titlebar-no-drag">HR Database</h1>
-            <p className="text-slate-400 text-sm mt-1">{employeeCount} employees</p>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Search - hidden when collapsed */}
-      {!collapsed && (
+      {/* Search - animated hide when collapsed */}
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ maxHeight: collapsed ? 0 : 60, opacity: collapsed ? 0 : 1 }}
+      >
         <div className="px-4 pt-4 pb-2">
           <GlobalSearch />
         </div>
-      )}
+      </div>
 
       <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1 overflow-y-auto`}>
         {/* Dashboard */}
@@ -145,26 +183,24 @@ export default function Sidebar() {
                 </div>
                 <Chevron open={employeesOpen} />
               </button>
-              {employeesOpen && (
-                <div className="ml-4 mt-1 space-y-1">
-                  <NavLink to="/employees" end className={({ isActive }) => navClass(isActive, true)}>
-                    <Users className="w-4 h-4" />
-                    Employee List
-                  </NavLink>
-                  <NavLink to="/employees/new" className={({ isActive }) => navClass(isActive, true)}>
-                    <UserPlus className="w-4 h-4" />
-                    Add Employee
-                  </NavLink>
-                  <NavLink to="/org-chart" className={({ isActive }) => navClass(isActive, true)}>
-                    <Network className="w-4 h-4" />
-                    Org Chart
-                  </NavLink>
-                  <NavLink to="/reports" className={({ isActive }) => navClass(isActive, true)}>
-                    <FileText className="w-4 h-4" />
-                    Reports
-                  </NavLink>
-                </div>
-              )}
+              <ExpandablePanel open={employeesOpen}>
+                <NavLink to="/employees" end className={({ isActive }) => navClass(isActive, true)}>
+                  <Users className="w-4 h-4" />
+                  Employee List
+                </NavLink>
+                <NavLink to="/employees/new" className={({ isActive }) => navClass(isActive, true)}>
+                  <UserPlus className="w-4 h-4" />
+                  Add Employee
+                </NavLink>
+                <NavLink to="/org-chart" className={({ isActive }) => navClass(isActive, true)}>
+                  <Network className="w-4 h-4" />
+                  Org Chart
+                </NavLink>
+                <NavLink to="/reports" className={({ isActive }) => navClass(isActive, true)}>
+                  <FileText className="w-4 h-4" />
+                  Reports
+                </NavLink>
+              </ExpandablePanel>
             </>
           )}
         </div>
@@ -190,22 +226,20 @@ export default function Sidebar() {
                 </div>
                 <Chevron open={timeTrackingOpen} />
               </button>
-              {timeTrackingOpen && (
-                <div className="ml-4 mt-1 space-y-1">
-                  <NavLink to="/time-tracking/calendar" className={({ isActive }) => navClass(isActive, true)}>
-                    <CalendarDays className="w-4 h-4" />
-                    Calendar
-                  </NavLink>
-                  <NavLink to="/time-tracking/time-off" className={({ isActive }) => navClass(isActive, true)}>
-                    <CalendarOff className="w-4 h-4" />
-                    Time Off
-                  </NavLink>
-                  <NavLink to="/time-tracking/reports" className={({ isActive }) => navClass(isActive, true)}>
-                    <BarChart3 className="w-4 h-4" />
-                    Reports
-                  </NavLink>
-                </div>
-              )}
+              <ExpandablePanel open={timeTrackingOpen}>
+                <NavLink to="/time-tracking/calendar" className={({ isActive }) => navClass(isActive, true)}>
+                  <CalendarDays className="w-4 h-4" />
+                  Calendar
+                </NavLink>
+                <NavLink to="/time-tracking/time-off" className={({ isActive }) => navClass(isActive, true)}>
+                  <CalendarOff className="w-4 h-4" />
+                  Time Off
+                </NavLink>
+                <NavLink to="/time-tracking/reports" className={({ isActive }) => navClass(isActive, true)}>
+                  <BarChart3 className="w-4 h-4" />
+                  Reports
+                </NavLink>
+              </ExpandablePanel>
             </>
           )}
         </div>
@@ -226,23 +260,24 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className={`${collapsed ? 'p-2' : 'p-4'} border-t border-slate-700 space-y-2`}>
-        {!collapsed && (
-          <>
-            <button
-              onClick={handleImport}
-              className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors"
-            >
-              Import from Excel
-            </button>
-            <button
-              onClick={handleUpdateImport}
-              className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors"
-            >
-              Update from Excel
-            </button>
-          </>
-        )}
+      <div className={`${collapsed ? 'p-2' : 'p-4'} border-t border-slate-700 space-y-2 transition-all duration-300`}>
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out space-y-2"
+          style={{ maxHeight: collapsed ? 0 : 100, opacity: collapsed ? 0 : 1 }}
+        >
+          <button
+            onClick={handleImport}
+            className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors whitespace-nowrap"
+          >
+            Import from Excel
+          </button>
+          <button
+            onClick={handleUpdateImport}
+            className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors whitespace-nowrap"
+          >
+            Update from Excel
+          </button>
+        </div>
         <NavLink
           to="/settings"
           title="Settings"
