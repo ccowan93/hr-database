@@ -330,7 +330,7 @@ function ShiftSelect({ value, shifts, onChange, onShiftsChanged }: ShiftSelectPr
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-80 overflow-hidden">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-visible">
           <div className="p-2 border-b border-gray-200 dark:border-gray-700">
             <input
               type="text"
