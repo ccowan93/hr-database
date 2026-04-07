@@ -1,6 +1,6 @@
 {
   "name": "hr-database",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "HR Employee Database Desktop App",
   "main": "dist/main/main.js",
   "overrides": {

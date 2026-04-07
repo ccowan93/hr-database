@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getDb, addPayHistory } from './database';
+import { getDb, addPayHistory, refreshComputedFields } from './database';
 
 const MONTHS: Record<string, string> = {
   'January': '01', 'February': '02', 'March': '03', 'April': '04',
@@ -153,5 +153,6 @@ export async function importUpdateFromExcel(filePath: string): Promise<UpdateRes
   });
 
   updateTransaction(rows);
+  refreshComputedFields();
   return result;
 }

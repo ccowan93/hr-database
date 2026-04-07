@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getDb } from './database';
+import { getDb, refreshComputedFields } from './database';
 
 const COLUMN_MAP: Record<string, string> = {
   'Employee Name': 'employee_name',
@@ -168,6 +168,7 @@ export async function importFromExcel(filePath: string): Promise<{ imported: num
   });
 
   insertTransaction(rawRows);
+  refreshComputedFields();
 
   return { imported, skipped, errors };
 }
