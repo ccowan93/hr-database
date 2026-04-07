@@ -181,6 +181,17 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_employee_files_employee ON employee_files(employee_id);
   `);
 
+  // ── Saved Reports ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS saved_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      config TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
   // Auto-refresh computed fields on startup
   refreshComputedFields();
 
@@ -894,6 +905,23 @@ export function deleteEmployeeFile(id: number) {
     try { fs.unlinkSync(txtPath); } catch (_) {}
   }
   db.prepare('DELETE FROM employee_files WHERE id = ?').run(id);
+}
+
+// ── Saved Reports ──
+
+export function getSavedReports(): { id: number; name: string; config: string }[] {
+  return db.prepare('SELECT id, name, config FROM saved_reports ORDER BY name ASC').all() as any[];
+}
+
+export function upsertSavedReport(name: string, config: string): void {
+  db.prepare(`
+    INSERT INTO saved_reports (name, config, updated_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(name) DO UPDATE SET config = excluded.config, updated_at = datetime('now')
+  `).run(name, config);
+}
+
+export function deleteSavedReport(name: string): void {
+  db.prepare('DELETE FROM saved_reports WHERE name = ?').run(name);
 }
 
 // ── Bulk Update ──

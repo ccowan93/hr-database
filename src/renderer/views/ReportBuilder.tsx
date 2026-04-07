@@ -62,15 +62,11 @@ interface SavedReport {
   filterStatus: string;
 }
 
-function loadSavedReports(): SavedReport[] {
+async function loadSavedReports(): Promise<SavedReport[]> {
   try {
-    const raw = localStorage.getItem('hr-saved-reports');
-    return raw ? JSON.parse(raw) : [];
+    const rows = await api.getSavedReports();
+    return rows.map(r => ({ ...JSON.parse(r.config), name: r.name }));
   } catch { return []; }
-}
-
-function saveSavedReports(reports: SavedReport[]) {
-  localStorage.setItem('hr-saved-reports', JSON.stringify(reports));
 }
 
 export default function ReportBuilder() {
@@ -90,11 +86,12 @@ export default function ReportBuilder() {
   const [reportGenerated, setReportGenerated] = useState(false);
 
   // Saved reports
-  const [savedReports, setSavedReports] = useState<SavedReport[]>(loadSavedReports);
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [reportName, setReportName] = useState('');
 
   useEffect(() => {
     api.getDepartments().then(setDepartments).catch(() => {});
+    loadSavedReports().then(setSavedReports);
   }, []);
 
   const generateReport = useCallback(async () => {
@@ -124,7 +121,7 @@ export default function ReportBuilder() {
   const selectAllCols = () => setSelectedCols(ALL_COLUMNS.map(c => c.key));
   const clearAllCols = () => setSelectedCols([]);
 
-  const handleSaveReport = () => {
+  const handleSaveReport = async () => {
     if (!reportName.trim()) return;
     const report: SavedReport = {
       name: reportName.trim(),
@@ -132,9 +129,10 @@ export default function ReportBuilder() {
       groupBy, aggregation, aggregationField,
       sortBy, sortDir, filterDept, filterStatus,
     };
+    const { name, ...config } = report;
+    await api.upsertSavedReport(name, JSON.stringify(config));
     const updated = [...savedReports.filter(r => r.name !== report.name), report];
     setSavedReports(updated);
-    saveSavedReports(updated);
     setReportName('');
   };
 
@@ -150,10 +148,9 @@ export default function ReportBuilder() {
     setReportGenerated(false);
   };
 
-  const deleteReport = (name: string) => {
-    const updated = savedReports.filter(r => r.name !== name);
-    setSavedReports(updated);
-    saveSavedReports(updated);
+  const deleteReport = async (name: string) => {
+    await api.deleteSavedReport(name);
+    setSavedReports(prev => prev.filter(r => r.name !== name));
   };
 
   const handleExport = async () => {

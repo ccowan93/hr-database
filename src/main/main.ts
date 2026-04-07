@@ -5,6 +5,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { loadConfig } from './app-config';
 import { startBackupScheduler, stopBackupScheduler } from './onedrive-backup';
 import { startLocalBackupScheduler, stopLocalBackupScheduler } from './local-backup';
+import { setUpdateWindow } from './update-checker';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -31,6 +32,9 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  // Connect window to auto-updater for progress events
+  setUpdateWindow(mainWindow);
 
   mainWindow.on('closed', () => {
     mainWindow = null;

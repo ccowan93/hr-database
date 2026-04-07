@@ -1,6 +1,6 @@
 {
   "name": "hr-database",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "HR Employee Database Desktop App",
   "main": "dist/main/main.js",
   "overrides": {
@@ -20,6 +20,13 @@
   "build": {
     "appId": "com.hrdb.app",
     "productName": "HR Database",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ccowan93",
+        "repo": "hr-database"
+      }
+    ],
     "directories": {
       "output": "release"
     },
@@ -65,6 +72,7 @@
     "@azure/msal-node": "^5.1.2",
     "@tailwindcss/vite": "^4.2.2",
     "better-sqlite3": "^12.8.0",
+    "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.7.0",
     "prop-types": "^15.8.1",

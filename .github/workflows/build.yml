@@ -9,6 +9,8 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
 
@@ -21,15 +23,22 @@ jobs:
 
       - run: npm run build
 
-      - run: npx electron-builder --win --publish never
+      - name: Build & Publish Windows Installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always
 
       - uses: actions/upload-artifact@v5
         with:
           name: windows-installer
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
 
   build-mac:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
 
@@ -56,33 +65,18 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
           rm certificate.p12
 
-      # Build, sign, and notarize
-      - name: Build macOS DMG
+      # Build, sign, notarize, and publish
+      - name: Build & Publish macOS DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac --publish never
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --publish always
 
       - uses: actions/upload-artifact@v5
         with:
           name: mac-installer
-          path: release/*.dmg
-
-  release:
-    needs: [build-windows, build-mac]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/windows-installer/*.exe
-            artifacts/mac-installer/*.dmg
-          generate_release_notes: true
+          path: |
+            release/*.dmg
+            release/latest-mac.yml

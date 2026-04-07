@@ -13,7 +13,7 @@ import {
   getPayGrowthByDepartment, getTimeSinceLastRaise, getPayEquity,
   getAgeDistribution, getSupervisorRatio, getAvgAgeByDepartment,
   getHeadcountGrowth, getDepartmentTransfers, getRetentionRate,
-  bulkUpdateEmployees, searchEmployees,
+  bulkUpdateEmployees, searchEmployees, getSavedReports, upsertSavedReport, deleteSavedReport,
   getRaces, getEthnicities, getLanguages, getEducationLevels,
   getAttendanceByEmployee, getAttendanceByDepartment, getAttendanceSummary,
   getAttendanceImports, deleteAttendanceBatch,
@@ -238,6 +238,11 @@ export function registerIpcHandlers() {
     return false;
   });
 
+  // ── Saved Reports ──
+  ipcMain.handle('db:get-saved-reports', () => getSavedReports());
+  ipcMain.handle('db:upsert-saved-report', (_event, name: string, config: string) => { upsertSavedReport(name, config); return true; });
+  ipcMain.handle('db:delete-saved-report', (_event, name: string) => { deleteSavedReport(name); return true; });
+
   // ── Reset Database ──
   ipcMain.handle('db:reset-database', () => {
     resetDatabase();
@@ -380,6 +385,26 @@ export function registerIpcHandlers() {
     } catch {
       return null;
     }
+  });
+
+  ipcMain.handle('app:download-update', async () => {
+    const { downloadUpdate } = await import('./update-checker');
+    try {
+      await downloadUpdate();
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  ipcMain.handle('app:install-update', (_event, releaseNotes?: string, version?: string) => {
+    const { installUpdate } = require('./update-checker');
+    installUpdate(releaseNotes, version);
+  });
+
+  ipcMain.handle('app:get-post-update-info', () => {
+    const { getPostUpdateInfo } = require('./update-checker');
+    return getPostUpdateInfo();
   });
 
   ipcMain.handle('app:open-release-page', async (_event, url?: string) => {

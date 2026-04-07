@@ -71,6 +71,10 @@ const electronAPI = {
   deleteEmployeeFile: (id: number) => ipcRenderer.invoke('db:delete-employee-file', id),
   openEmployeeFile: (id: number) => ipcRenderer.invoke('db:open-employee-file', id),
 
+  getSavedReports: () => ipcRenderer.invoke('db:get-saved-reports'),
+  upsertSavedReport: (name: string, config: string) => ipcRenderer.invoke('db:upsert-saved-report', name, config),
+  deleteSavedReport: (name: string) => ipcRenderer.invoke('db:delete-saved-report', name),
+
   resetDatabase: () => ipcRenderer.invoke('db:reset-database'),
   backupDatabase: () => ipcRenderer.invoke('db:backup'),
   restoreDatabase: () => ipcRenderer.invoke('db:restore'),
@@ -126,8 +130,28 @@ const electronAPI = {
 
   // App Updates
   checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('app:download-update'),
+  installUpdate: (releaseNotes?: string, version?: string) => ipcRenderer.invoke('app:install-update', releaseNotes, version),
+  getPostUpdateInfo: () => ipcRenderer.invoke('app:get-post-update-info'),
   openReleasePage: (url?: string) => ipcRenderer.invoke('app:open-release-page', url),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+
+  // Update event listeners
+  onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
+    const listener = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('update:download-progress', listener);
+    return () => ipcRenderer.removeListener('update:download-progress', listener);
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('update:downloaded', listener);
+    return () => ipcRenderer.removeListener('update:downloaded', listener);
+  },
+  onUpdateError: (callback: (message: string) => void) => {
+    const listener = (_event: any, message: string) => callback(message);
+    ipcRenderer.on('update:error', listener);
+    return () => ipcRenderer.removeListener('update:error', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

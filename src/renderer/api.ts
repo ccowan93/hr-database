@@ -57,6 +57,10 @@ declare global {
       deleteEmployeeFile: (id: number) => Promise<boolean>;
       openEmployeeFile: (id: number) => Promise<boolean>;
 
+      getSavedReports: () => Promise<{ id: number; name: string; config: string }[]>;
+      upsertSavedReport: (name: string, config: string) => Promise<boolean>;
+      deleteSavedReport: (name: string) => Promise<boolean>;
+
       resetDatabase: () => Promise<boolean>;
       backupDatabase: () => Promise<{ success: boolean; path?: string; error?: string }>;
       restoreDatabase: () => Promise<{ success: boolean; error?: string }>;
@@ -112,8 +116,14 @@ declare global {
 
       // App Updates
       checkForUpdates: () => Promise<{ currentVersion: string; latestVersion: string; isOutdated: boolean; releaseUrl: string; releaseName: string; publishedAt: string } | null>;
+      downloadUpdate: () => Promise<boolean>;
+      installUpdate: (releaseNotes?: string, version?: string) => Promise<void>;
+      getPostUpdateInfo: () => Promise<{ version: string; releaseNotes: string } | null>;
       openReleasePage: (url?: string) => Promise<void>;
       getAppVersion: () => Promise<string>;
+      onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => () => void;
+      onUpdateDownloaded: (callback: () => void) => () => void;
+      onUpdateError: (callback: (message: string) => void) => () => void;
     };
   }
 }
