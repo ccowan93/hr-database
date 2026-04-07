@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
@@ -78,6 +79,7 @@ export default function Dashboard() {
   const [raiseData, setRaiseData] = useState<any[]>([]);
   const [payEquity, setPayEquity] = useState<{ byGender: any[]; byRace: any[]; byEducation: any[] }>({ byGender: [], byRace: [], byEducation: [] });
   const [ageDist, setAgeDist] = useState<any[]>([]);
+  const [backupEnabled, setBackupEnabled] = useState<boolean | null>(null);
   const [supervisorRatio, setSupervisorRatio] = useState<any[]>([]);
   const [avgAgeDept, setAvgAgeDept] = useState<any[]>([]);
   const [headcountGrowth, setHeadcountGrowth] = useState<any[]>([]);
@@ -114,6 +116,7 @@ export default function Dashboard() {
       setSupervisorRatio(sr); setAvgAgeDept(aad); setHeadcountGrowth(hg);
       setTransfers(tr); setRetention(ret);
     }).catch(console.error).finally(() => setLoading(false));
+    api.localBackupGetStatus().then(s => setBackupEnabled(s.enabled)).catch(() => {});
   }, []);
 
   const updateLayout = useCallback((newLayout: LayoutConfig) => {
@@ -317,7 +320,7 @@ export default function Dashboard() {
           <ChartCard title="Gender Distribution">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={stats.sexBreakdown} dataKey="count" nameKey="sex" cx="50%" cy="50%" outerRadius={100} label={({ sex, count }) => `${sex}: ${count}`}>
+                <Pie data={stats.sexBreakdown} dataKey="count" nameKey="sex" cx="50%" cy="50%" outerRadius={100} label={({ sex, count }) => `${sex}: ${count}`} style={{ outline: 'none' }}>
                   {stats.sexBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip /><Legend />
@@ -331,7 +334,7 @@ export default function Dashboard() {
           <ChartCard title="Race / Ethnicity Breakdown">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={stats.raceBreakdown} dataKey="count" nameKey="race" cx="50%" cy="50%" outerRadius={100} label={({ race, count }) => `${race}: ${count}`}>
+                <Pie data={stats.raceBreakdown} dataKey="count" nameKey="race" cx="50%" cy="50%" outerRadius={100} label={({ race, count }) => `${race}: ${count}`} style={{ outline: 'none' }}>
                   {stats.raceBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip /><Legend />
@@ -375,7 +378,7 @@ export default function Dashboard() {
           <ChartCard title="Education Level Breakdown">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={stats.educationBreakdown} dataKey="count" nameKey="education" cx="50%" cy="50%" outerRadius={100} label={({ education, count }) => `${education}: ${count}`}>
+                <Pie data={stats.educationBreakdown} dataKey="count" nameKey="education" cx="50%" cy="50%" outerRadius={100} label={({ education, count }) => `${education}: ${count}`} style={{ outline: 'none' }}>
                   {stats.educationBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
                 <Tooltip /><Legend />
@@ -702,6 +705,20 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Backup Warning */}
+      {backupEnabled === false && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-center gap-3">
+          <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Backups Not Configured</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Set up local auto-backup in Settings to protect your data.</p>
+          </div>
+          <Link to="/settings" className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline whitespace-nowrap">Go to Settings →</Link>
+        </div>
+      )}
 
       {/* Customize Panel */}
       {showCustomize && (

@@ -19,6 +19,15 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Remove Recharts focus outlines on chart elements */
+.recharts-sector:focus,
+.recharts-rectangle:focus,
+.recharts-sector,
+.recharts-rectangle,
+.recharts-surface:focus {
+  outline: none !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
