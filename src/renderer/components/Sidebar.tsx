@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { api } from '../api';
-import GlobalSearch from './GlobalSearch';
 
 const COLLAPSED_KEY = 'hr-sidebar-collapsed';
 
@@ -133,16 +132,6 @@ export default function Sidebar() {
               </>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Search - animated hide when collapsed */}
-      <div
-        className="overflow-hidden transition-all duration-300 ease-in-out"
-        style={{ maxHeight: collapsed ? 0 : 60, opacity: collapsed ? 0 : 1 }}
-      >
-        <div className="px-4 pt-4 pb-2">
-          <GlobalSearch />
         </div>
       </div>
 
