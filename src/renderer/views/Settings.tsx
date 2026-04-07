@@ -648,9 +648,12 @@ export default function Settings() {
                   if (!info) {
                     if (statusEl) statusEl.textContent = 'Could not check for updates';
                   } else if (info.isOutdated) {
-                    if (statusEl) statusEl.textContent = `Update available: v${info.latestVersion}`;
-                    if (confirm(`A new version (v${info.latestVersion}) is available. Open the download page?`)) {
-                      api.openReleasePage(info.releaseUrl);
+                    if (statusEl) statusEl.textContent = `Downloading v${info.latestVersion}...`;
+                    try {
+                      await api.downloadUpdate();
+                      // The UpdateBanner listeners will handle download-progress and downloaded events
+                    } catch {
+                      if (statusEl) statusEl.textContent = `Update available: v${info.latestVersion} (download failed)`;
                     }
                   } else {
                     if (statusEl) statusEl.textContent = 'You are on the latest version!';
