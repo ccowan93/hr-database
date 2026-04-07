@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { dialog } from 'electron';
 
 const COLUMN_HEADERS: Record<string, string> = {
@@ -46,21 +46,30 @@ export async function exportEmployeesToXlsx(employees: any[]): Promise<{ success
     return { success: false, error: 'Export cancelled' };
   }
 
-  const headers = EXPORT_COLUMNS.map(c => COLUMN_HEADERS[c] || c);
-  const rows = employees.map(emp =>
-    EXPORT_COLUMNS.map(col => emp[col] ?? '')
-  );
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Employees');
 
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  // Add header row
+  const headerValues = EXPORT_COLUMNS.map(c => COLUMN_HEADERS[c] || c);
+  worksheet.addRow(headerValues);
+
+  // Style header row
+  const headerRowObj = worksheet.getRow(1);
+  headerRowObj.font = { bold: true };
 
   // Set column widths
-  ws['!cols'] = EXPORT_COLUMNS.map(col => ({
-    wch: Math.max((COLUMN_HEADERS[col] || col).length, 12)
-  }));
+  EXPORT_COLUMNS.forEach((col, i) => {
+    const header = COLUMN_HEADERS[col] || col;
+    worksheet.getColumn(i + 1).width = Math.max(header.length, 12);
+  });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Employees');
-  XLSX.writeFile(wb, result.filePath);
+  // Add data rows
+  for (const emp of employees) {
+    const rowValues = EXPORT_COLUMNS.map(col => emp[col] ?? '');
+    worksheet.addRow(rowValues);
+  }
+
+  await workbook.xlsx.writeFile(result.filePath);
 
   return { success: true, path: result.filePath };
 }

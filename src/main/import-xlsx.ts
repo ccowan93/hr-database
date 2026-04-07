@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { getDb } from './database';
 
 const COLUMN_MAP: Record<string, string> = {
@@ -35,6 +35,11 @@ const MONTHS: Record<string, string> = {
 function parseDate(value: any): string | null {
   if (value == null) return null;
 
+  // Date object
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+
   // Excel serial number
   if (typeof value === 'number') {
     const date = new Date((value - 25569) * 86400 * 1000);
@@ -63,17 +68,6 @@ function parseDate(value: any): string | null {
   return null;
 }
 
-/** Trim keys of a row object so " Current Pay Rate " becomes "Current Pay Rate" */
-function trimRowKeys(row: Record<string, any>): Record<string, any> {
-  const trimmed: Record<string, any> = {};
-  for (const [key, value] of Object.entries(row)) {
-    const trimmedKey = key.trim();
-    // Also trim string values
-    trimmed[trimmedKey] = typeof value === 'string' ? value.trim() : value;
-  }
-  return trimmed;
-}
-
 function isDataRow(row: Record<string, any>): boolean {
   const name = row['Employee Name'];
   if (!name || typeof name !== 'string') return false;
@@ -82,10 +76,37 @@ function isDataRow(row: Record<string, any>): boolean {
   return true;
 }
 
-export function importFromExcel(filePath: string): { imported: number; skipped: number; errors: string[] } {
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null }) as Record<string, any>[];
+export async function importFromExcel(filePath: string): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const workbook = new ExcelJS.Workbook();
+  if (filePath.endsWith('.csv')) {
+    await workbook.csv.readFile(filePath);
+  } else {
+    await workbook.xlsx.readFile(filePath);
+  }
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return { imported: 0, skipped: 0, errors: ['No worksheet found'] };
+
+  // Read header row
+  const headerRow = worksheet.getRow(1);
+  const headers: Record<number, string> = {};
+  headerRow.eachCell((cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? '').trim();
+  });
+
+  // Read data rows into objects
+  const rawRows: Record<string, any>[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // skip header
+    const obj: Record<string, any> = {};
+    row.eachCell((cell, colNumber) => {
+      const header = headers[colNumber];
+      if (header) {
+        obj[header] = cell.value instanceof Date ? cell.value : (cell.value ?? null);
+      }
+    });
+    rawRows.push(obj);
+  });
 
   const db = getDb();
   const errors: string[] = [];
@@ -101,9 +122,7 @@ export function importFromExcel(filePath: string): { imported: number; skipped: 
     const placeholders = columns.map(() => '?').join(', ');
     const stmt = db.prepare(`INSERT OR REPLACE INTO employees (${columns.join(', ')}) VALUES (${placeholders})`);
 
-    for (const rawRow of dataRows) {
-      const row = trimRowKeys(rawRow);
-
+    for (const row of dataRows) {
       if (!isDataRow(row)) {
         skipped++;
         continue;

@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { getDb, addPayHistory } from './database';
 
 const MONTHS: Record<string, string> = {
@@ -9,6 +9,11 @@ const MONTHS: Record<string, string> = {
 
 function parseDate(value: any): string | null {
   if (!value) return null;
+
+  // Date object
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
 
   // Excel serial number
   if (typeof value === 'number') {
@@ -48,10 +53,33 @@ interface UpdateResult {
   errors: string[];
 }
 
-export function importUpdateFromExcel(filePath: string): UpdateResult {
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null }) as Record<string, any>[];
+export async function importUpdateFromExcel(filePath: string): Promise<UpdateResult> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return { updated: 0, notFound: [], skipped: 0, errors: ['No worksheet found'] };
+
+  // Read header row
+  const headerRow = worksheet.getRow(1);
+  const headers: Record<number, string> = {};
+  headerRow.eachCell((cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? '').trim();
+  });
+
+  // Read data rows into objects
+  const rows: Record<string, any>[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const obj: Record<string, any> = {};
+    row.eachCell((cell, colNumber) => {
+      const header = headers[colNumber];
+      if (header) {
+        obj[header] = cell.value instanceof Date ? cell.value : (cell.value ?? null);
+      }
+    });
+    rows.push(obj);
+  });
 
   const db = getDb();
   const result: UpdateResult = { updated: 0, notFound: [], skipped: 0, errors: [] };

@@ -75,7 +75,7 @@ export function registerIpcHandlers() {
     return importFromExcel(result.filePaths[0]);
   });
 
-  ipcMain.handle('db:import-xlsx-path', (_event, filePath: string) => importFromExcel(filePath));
+  ipcMain.handle('db:import-xlsx-path', async (_event, filePath: string) => importFromExcel(filePath));
 
   ipcMain.handle('db:import-update-xlsx', async () => {
     const result = await dialog.showOpenDialog({
