@@ -989,6 +989,77 @@ export function deleteAttendanceBatch(batchId: string) {
   db.prepare('DELETE FROM attendance_records WHERE import_batch_id = ?').run(batchId);
 }
 
+export function deleteAttendanceRecord(recordId: number, reason: string = 'manual') {
+  const record = db.prepare('SELECT * FROM attendance_records WHERE id = ?').get(recordId) as any;
+  if (!record) return false;
+
+  logAuditEntry({
+    employee_id: record.employee_id,
+    employee_name: record.employee_name_raw || 'Unknown',
+    field_name: 'attendance_record',
+    old_value: JSON.stringify({ id: record.id, date: record.date, punch_in: record.punch_in, punch_out: record.punch_out, reg_hours: record.reg_hours, ot_hours: record.ot_hours }),
+    new_value: null,
+    change_source: reason,
+  });
+
+  db.prepare('DELETE FROM attendance_records WHERE id = ?').run(recordId);
+  return true;
+}
+
+export function deleteAttendanceRecords(recordIds: number[], reason: string = 'bulk-delete') {
+  const stmt = db.prepare('SELECT * FROM attendance_records WHERE id = ?');
+  const deleteStmt = db.prepare('DELETE FROM attendance_records WHERE id = ?');
+
+  const deleteAll = db.transaction(() => {
+    for (const id of recordIds) {
+      const record = stmt.get(id) as any;
+      if (!record) continue;
+      logAuditEntry({
+        employee_id: record.employee_id,
+        employee_name: record.employee_name_raw || 'Unknown',
+        field_name: 'attendance_record',
+        old_value: JSON.stringify({ id: record.id, date: record.date, punch_in: record.punch_in, punch_out: record.punch_out, reg_hours: record.reg_hours, ot_hours: record.ot_hours }),
+        new_value: null,
+        change_source: reason,
+      });
+      deleteStmt.run(id);
+    }
+  });
+  deleteAll();
+  return recordIds.length;
+}
+
+export function deleteAttendanceBatchWithAudit(batchId: string, reason: string = 'batch-delete') {
+  const records = db.prepare('SELECT * FROM attendance_records WHERE import_batch_id = ?').all(batchId) as any[];
+  if (records.length === 0) return 0;
+
+  const deleteAll = db.transaction(() => {
+    for (const record of records) {
+      logAuditEntry({
+        employee_id: record.employee_id,
+        employee_name: record.employee_name_raw || 'Unknown',
+        field_name: 'attendance_record',
+        old_value: JSON.stringify({ id: record.id, date: record.date, punch_in: record.punch_in, punch_out: record.punch_out }),
+        new_value: null,
+        change_source: reason,
+      });
+    }
+    db.prepare('DELETE FROM attendance_records WHERE import_batch_id = ?').run(batchId);
+  });
+  deleteAll();
+  return records.length;
+}
+
+export function getAllAttendanceRecords(startDate: string, endDate: string) {
+  return db.prepare(`
+    SELECT ar.*, e.employee_name, e.current_department
+    FROM attendance_records ar
+    LEFT JOIN employees e ON ar.employee_id = e.id
+    WHERE ar.date >= ? AND ar.date <= ?
+    ORDER BY ar.date DESC, ar.employee_name_raw ASC
+  `).all(startDate, endDate);
+}
+
 // ── Time-Off Requests ──
 
 export function createTimeOffRequest(data: {

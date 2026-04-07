@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
+import { api } from './api';
 import Dashboard from './views/Dashboard';
 import EmployeeList from './views/EmployeeList';
 import EmployeeDetail from './views/EmployeeDetail';
@@ -12,12 +13,18 @@ import ReportBuilder from './views/ReportBuilder';
 import AttendanceCalendar from './views/AttendanceCalendar';
 import TimeOffManager from './views/TimeOffManager';
 import AttendanceReports from './views/AttendanceReports';
+import UpdateBanner from './components/UpdateBanner';
 
 export default function App() {
+  useEffect(() => {
+    api.getAppVersion().then(v => { (window as any).__appVersion = v; });
+  }, []);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
+        <UpdateBanner />
         <div className="titlebar-drag h-10 flex-shrink-0 bg-gray-50 dark:bg-gray-900" />
         <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 px-6 pb-6">
         <Routes>

@@ -70,12 +70,16 @@ const electronAPI = {
   restoreDatabase: () => ipcRenderer.invoke('db:restore'),
 
   // Attendance
-  importAttendance: () => ipcRenderer.invoke('db:import-attendance'),
+  parseAttendance: () => ipcRenderer.invoke('db:parse-attendance'),
+  confirmAttendanceImport: (data: any) => ipcRenderer.invoke('db:confirm-attendance-import', data),
   getAttendance: (employeeId: number, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-attendance', employeeId, startDate, endDate),
   getAttendanceByDept: (department: string, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-attendance-by-dept', department, startDate, endDate),
   getAttendanceSummary: (filters: any) => ipcRenderer.invoke('db:get-attendance-summary', filters),
   getAttendanceImports: () => ipcRenderer.invoke('db:get-attendance-imports'),
   deleteAttendanceBatch: (batchId: string) => ipcRenderer.invoke('db:delete-attendance-batch', batchId),
+  deleteAttendanceRecord: (id: number) => ipcRenderer.invoke('db:delete-attendance-record', id),
+  deleteAttendanceRecords: (ids: number[]) => ipcRenderer.invoke('db:delete-attendance-records', ids),
+  getAllAttendance: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-all-attendance', startDate, endDate),
 
   // Time Off
   createTimeOffRequest: (data: any) => ipcRenderer.invoke('db:create-time-off-request', data),
@@ -109,6 +113,11 @@ const electronAPI = {
   localBackupList: () => ipcRenderer.invoke('local-backup:list'),
   localBackupRestore: (backupPath: string) => ipcRenderer.invoke('local-backup:restore', backupPath),
   localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => ipcRenderer.invoke('local-backup:update-settings', settings),
+
+  // App Updates
+  checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+  openReleasePage: (url?: string) => ipcRenderer.invoke('app:open-release-page', url),
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

@@ -16,13 +16,14 @@ import {
   getRaces, getEthnicities, getLanguages, getEducationLevels,
   getAttendanceByEmployee, getAttendanceByDepartment, getAttendanceSummary,
   getAttendanceImports, deleteAttendanceBatch,
+  deleteAttendanceRecord, deleteAttendanceRecords, deleteAttendanceBatchWithAudit, getAllAttendanceRecords,
   createTimeOffRequest, updateTimeOffRequest, getTimeOffRequests,
   getTimeOffBalances, upsertTimeOffBalance,
   getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport
 } from './database';
 import { importFromExcel } from './import-xlsx';
 import { importUpdateFromExcel } from './import-update-xlsx';
-import { importAttendanceFromExcel } from './import-attendance';
+import { parseAttendanceFile, confirmAttendanceImport } from './import-attendance';
 import { exportEmployeesToXlsx } from './export-xlsx';
 import { exportEmployeePDF, exportDashboardPDF } from './export-pdf';
 import { signIn as onedriveSignIn, signOut as onedriveSignOut, uploadBackup, restoreFromOneDrive, downloadBackupFile, getOneDriveStatus, setClientId, startBackupScheduler } from './onedrive-backup';
@@ -225,15 +226,19 @@ export function registerIpcHandlers() {
     }
   });
 
-  // ── Attendance Import ──
-  ipcMain.handle('db:import-attendance', async () => {
+  // ── Attendance Import (two-step) ──
+  ipcMain.handle('db:parse-attendance', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Import CompuTime101 Attendance File',
       filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
       properties: ['openFile'],
     });
-    if (result.canceled || result.filePaths.length === 0) return { imported: 0, skipped: 0, unmatched: [], errors: ['Import cancelled'] };
-    return importAttendanceFromExcel(result.filePaths[0]);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return parseAttendanceFile(result.filePaths[0]);
+  });
+
+  ipcMain.handle('db:confirm-attendance-import', (_event, data: { records: any[]; manualMappings: { rawName: string; employeeId: number }[]; updateNames: boolean }) => {
+    return confirmAttendanceImport(data);
   });
 
   // ── Attendance Queries ──
@@ -243,7 +248,10 @@ export function registerIpcHandlers() {
     getAttendanceByDepartment(department, startDate, endDate));
   ipcMain.handle('db:get-attendance-summary', (_event, filters: any) => getAttendanceSummary(filters));
   ipcMain.handle('db:get-attendance-imports', () => getAttendanceImports());
-  ipcMain.handle('db:delete-attendance-batch', (_event, batchId: string) => { deleteAttendanceBatch(batchId); return true; });
+  ipcMain.handle('db:delete-attendance-batch', (_event, batchId: string) => { return deleteAttendanceBatchWithAudit(batchId); });
+  ipcMain.handle('db:delete-attendance-record', (_event, recordId: number) => deleteAttendanceRecord(recordId));
+  ipcMain.handle('db:delete-attendance-records', (_event, recordIds: number[]) => deleteAttendanceRecords(recordIds));
+  ipcMain.handle('db:get-all-attendance', (_event, startDate: string, endDate: string) => getAllAttendanceRecords(startDate, endDate));
 
   // ── Time-Off Requests ──
   ipcMain.handle('db:create-time-off-request', (_event, data: any) => createTimeOffRequest(data));
@@ -303,5 +311,25 @@ export function registerIpcHandlers() {
     saveConfig({ localBackup: settings as any });
     startLocalBackupScheduler();
     return true;
+  });
+
+  // ── Update Checker ──
+  ipcMain.handle('app:check-for-updates', async () => {
+    const { checkForUpdates } = await import('./update-checker');
+    try {
+      return await checkForUpdates();
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('app:open-release-page', async (_event, url?: string) => {
+    const { openReleasePage } = await import('./update-checker');
+    openReleasePage(url);
+  });
+
+  ipcMain.handle('app:get-version', () => {
+    const { app } = require('electron');
+    return app.getVersion();
   });
 }

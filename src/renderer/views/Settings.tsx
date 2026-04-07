@@ -672,6 +672,45 @@ export default function Settings() {
           </div>
         )}
 
+        {/* About & Updates */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">About & Updates</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                HR Database <span className="font-mono font-medium" id="app-version-display">v{(window as any).__appVersion || '...'}</span>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" id="update-status-text">
+                Click to check for updates
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const statusEl = document.getElementById('update-status-text');
+                if (statusEl) statusEl.textContent = 'Checking...';
+                try {
+                  const info = await api.checkForUpdates();
+                  if (!info) {
+                    if (statusEl) statusEl.textContent = 'Could not check for updates';
+                  } else if (info.isOutdated) {
+                    if (statusEl) statusEl.textContent = `Update available: v${info.latestVersion}`;
+                    if (confirm(`A new version (v${info.latestVersion}) is available. Open the download page?`)) {
+                      api.openReleasePage(info.releaseUrl);
+                    }
+                  } else {
+                    if (statusEl) statusEl.textContent = 'You are on the latest version!';
+                  }
+                } catch {
+                  if (statusEl) statusEl.textContent = 'Update check failed';
+                }
+              }}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors"
+            >
+              Check for Updates
+            </button>
+          </div>
+        </div>
+
         {/* Danger Zone */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-800 shadow-sm p-6">
           <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-1">Danger Zone</h3>

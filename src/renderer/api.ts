@@ -1,5 +1,5 @@
 import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote } from './types/employee';
-import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry } from './types/attendance';
+import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry, ParsedAttendanceResult, ConfirmImportData } from './types/attendance';
 
 declare global {
   interface Window {
@@ -56,12 +56,16 @@ declare global {
       restoreDatabase: () => Promise<{ success: boolean; error?: string }>;
 
       // Attendance
-      importAttendance: () => Promise<AttendanceImportResult>;
+      parseAttendance: () => Promise<ParsedAttendanceResult | null>;
+      confirmAttendanceImport: (data: ConfirmImportData) => Promise<AttendanceImportResult>;
       getAttendance: (employeeId: number, startDate: string, endDate: string) => Promise<AttendanceRecord[]>;
       getAttendanceByDept: (department: string, startDate: string, endDate: string) => Promise<AttendanceRecord[]>;
       getAttendanceSummary: (filters: { employeeId?: number; department?: string; startDate: string; endDate: string }) => Promise<AttendanceSummary>;
       getAttendanceImports: () => Promise<AttendanceImportBatch[]>;
       deleteAttendanceBatch: (batchId: string) => Promise<boolean>;
+      deleteAttendanceRecord: (id: number) => Promise<boolean>;
+      deleteAttendanceRecords: (ids: number[]) => Promise<number>;
+      getAllAttendance: (startDate: string, endDate: string) => Promise<AttendanceRecord[]>;
 
       // Time Off
       createTimeOffRequest: (data: { employee_id: number; request_type: string; start_date: string; end_date: string; notes?: string }) => Promise<number>;
@@ -95,6 +99,11 @@ declare global {
       localBackupList: () => Promise<{ name: string; path: string; size: number; modified: string }[]>;
       localBackupRestore: (backupPath: string) => Promise<{ success: boolean; error?: string }>;
       localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => Promise<boolean>;
+
+      // App Updates
+      checkForUpdates: () => Promise<{ currentVersion: string; latestVersion: string; isOutdated: boolean; releaseUrl: string; releaseName: string; publishedAt: string } | null>;
+      openReleasePage: (url?: string) => Promise<void>;
+      getAppVersion: () => Promise<string>;
     };
   }
 }

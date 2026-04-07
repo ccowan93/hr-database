@@ -34,7 +34,7 @@
           ]
         }
       ],
-      "icon": null
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": false,

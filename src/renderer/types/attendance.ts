@@ -38,6 +38,47 @@ export interface AttendanceSummary {
   total_records: number;
 }
 
+export interface ParsedAttendanceRecord {
+  employee_name_raw: string;
+  employee_id: number | null;
+  employee_id_raw: number;
+  pin_number: number;
+  date: string;
+  punch_in: string | null;
+  punch_out: string | null;
+  reg_hours: number;
+  ot_hours: number;
+  work_code: string | null;
+  code_name: string | null;
+  site: string | null;
+  missing_punch: number;
+}
+
+export interface UnmatchedEmployee {
+  rawName: string;
+  employeeIdRaw: number;
+  pinNumber: number;
+}
+
+export interface MatchedEmployee {
+  rawName: string;
+  employeeId: number;
+  employeeName: string;
+}
+
+export interface ParsedAttendanceResult {
+  records: ParsedAttendanceRecord[];
+  unmatched: UnmatchedEmployee[];
+  matched: MatchedEmployee[];
+  errors: string[];
+}
+
+export interface ConfirmImportData {
+  records: ParsedAttendanceRecord[];
+  manualMappings: { rawName: string; employeeId: number }[];
+  updateNames: boolean;
+}
+
 export interface TimeOffRequest {
   id: number;
   employee_id: number;

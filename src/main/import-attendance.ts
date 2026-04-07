@@ -1,242 +1,352 @@
 import * as XLSX from 'xlsx';
-import { matchEmployeeByName, importAttendanceBatch } from './database';
+import { matchEmployeeByName, importAttendanceBatch, updateEmployee } from './database';
 
-const ATTENDANCE_COLUMN_MAP: Record<string, string> = {
-  'Employee Name': 'employee_name',
-  'Employee Id': 'employee_id_raw',
-  'Pin Number': 'pin_number',
-  'Date': 'date',
-  'Work Code': 'work_code',
-  'Code Name': 'code_name',
-  'Punch': 'punch',
-  'Reg': 'reg_hours',
-  'OT': 'ot_hours',
-  'Memo': 'memo',
-  'MP': 'missing_punch',
-  'Site': 'site',
+// Column indices for CompuTime101 qryWorkCodeDetail sheet
+const COL = {
+  EMPLOYEE_NAME: 0,
+  EMPLOYEE_ID: 1,
+  PIN_NUMBER: 2,
+  DATE: 3,
+  WORK_CODE: 4,
+  CODE_NAME: 5,
+  PUNCH: 6,      // time as day-fraction
+  EXPR1: 7,      // "In" or ""
+  EXPR2: 8,      // "" or "Out"
+  REG: 9,        // minutes (only on Out rows)
+  OT: 10,        // minutes
+  OT2: 11,       // minutes
+  MEMO: 12,
+  MP: 13,
+  SITE: 18,
 };
 
-const MONTHS: Record<string, string> = {
-  'January': '01', 'February': '02', 'March': '03', 'April': '04',
-  'May': '05', 'June': '06', 'July': '07', 'August': '08',
-  'September': '09', 'October': '10', 'November': '11', 'December': '12',
-};
-
-function parseDate(value: any): string | null {
-  if (value == null) return null;
-
-  // Excel serial number
-  if (typeof value === 'number') {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return date.toISOString().split('T')[0];
-  }
-
-  if (typeof value !== 'string') return null;
-
-  // Already ISO
-  if (value.match(/^\d{4}-\d{2}-\d{2}/)) return value;
-
-  // MM/DD/YYYY
-  const mdy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (mdy) return `${mdy[3]}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`;
-
-  // "Month DD, YYYY" format
-  const longDate = value.match(/(\w+)\s+(\d{1,2}),?\s+(\d{4})/);
-  if (longDate) {
-    const month = MONTHS[longDate[1]];
-    if (month) return `${longDate[3]}-${month}-${longDate[2].padStart(2, '0')}`;
-  }
-
-  return null;
+export interface ParsedAttendanceRecord {
+  employee_name_raw: string;
+  employee_id: number | null;
+  employee_id_raw: number;
+  pin_number: number;
+  date: string;
+  punch_in: string | null;
+  punch_out: string | null;
+  reg_hours: number;
+  ot_hours: number;
+  work_code: string | null;
+  code_name: string | null;
+  site: string | null;
+  missing_punch: number;
 }
 
-function parseTime(value: any): string | null {
-  if (value == null) return null;
-
-  // Excel serial number for time (fraction of day)
-  if (typeof value === 'number' && value < 1) {
-    const totalMinutes = Math.round(value * 24 * 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-
-  if (typeof value === 'number') {
-    // Could be a datetime serial - extract time portion
-    const frac = value - Math.floor(value);
-    if (frac > 0) {
-      const totalMinutes = Math.round(frac * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    return null;
-  }
-
-  if (typeof value !== 'string') return null;
-
-  // HH:MM or H:MM
-  const hm = value.match(/^(\d{1,2}):(\d{2})/);
-  if (hm) return `${hm[1].padStart(2, '0')}:${hm[2]}`;
-
-  // HH:MM:SS
-  const hms = value.match(/^(\d{1,2}):(\d{2}):\d{2}/);
-  if (hms) return `${hms[1].padStart(2, '0')}:${hms[2]}`;
-
-  // HH:MM AM/PM
-  const ampm = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (ampm) {
-    let hours = parseInt(ampm[1]);
-    if (ampm[3].toUpperCase() === 'PM' && hours !== 12) hours += 12;
-    if (ampm[3].toUpperCase() === 'AM' && hours === 12) hours = 0;
-    return `${String(hours).padStart(2, '0')}:${ampm[2]}`;
-  }
-
-  return null;
+export interface UnmatchedEmployee {
+  rawName: string;
+  employeeIdRaw: number;
+  pinNumber: number;
 }
 
-function trimRowKeys(row: Record<string, any>): Record<string, any> {
-  const trimmed: Record<string, any> = {};
-  for (const [key, value] of Object.entries(row)) {
-    trimmed[key.trim()] = typeof value === 'string' ? value.trim() : value;
-  }
-  return trimmed;
+export interface MatchedEmployee {
+  rawName: string;
+  employeeId: number;
+  employeeName: string;
 }
 
-interface AttendanceImportResult {
+export interface ParseResult {
+  records: ParsedAttendanceRecord[];
+  unmatched: UnmatchedEmployee[];
+  matched: MatchedEmployee[];
+  errors: string[];
+}
+
+export interface AttendanceImportResult {
   imported: number;
   skipped: number;
   unmatched: string[];
   errors: string[];
 }
 
-export function importAttendanceFromExcel(filePath: string): AttendanceImportResult {
+function excelSerialToDate(serial: number): string | null {
+  if (serial == null || typeof serial !== 'number') return null;
+  const date = new Date((serial - 25569) * 86400 * 1000);
+  return date.toISOString().split('T')[0];
+}
+
+function dayFractionToTime(fraction: any): string | null {
+  if (fraction == null || typeof fraction !== 'number') return null;
+  const totalMinutes = Math.round(fraction * 24 * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function parseAttendanceFile(filePath: string): ParseResult {
   const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null }) as Record<string, any>[];
+
+  // Look for the specific sheet name, fall back to first sheet
+  const sheetName = workbook.SheetNames.includes('qryWorkCodeDetail')
+    ? 'qryWorkCodeDetail'
+    : workbook.SheetNames[0];
+  const ws = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
   const errors: string[] = [];
-  const unmatchedSet = new Set<string>();
-  let imported = 0;
-  let skipped = 0;
+  const matchedMap = new Map<string, MatchedEmployee>();
+  const unmatchedMap = new Map<string, UnmatchedEmployee>();
+  const nameCache = new Map<string, { employee_id: number; employee_name: string } | null>();
+
+  // Parse rows into typed punch entries, skipping header (row 0)
+  interface PunchEntry {
+    employeeName: string;
+    employeeIdRaw: number;
+    pinNumber: number;
+    date: string;
+    time: string | null;
+    isIn: boolean;
+    isOut: boolean;
+    regMinutes: number;
+    otMinutes: number;
+    workCode: string | null;
+    codeName: string | null;
+    site: string | null;
+    mp: number;
+  }
+
+  const punches: PunchEntry[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const employeeName = row[COL.EMPLOYEE_NAME];
+    if (!employeeName || typeof employeeName !== 'string' || !employeeName.trim()) {
+      continue;
+    }
+
+    const dateVal = row[COL.DATE];
+    const date = typeof dateVal === 'number' ? excelSerialToDate(dateVal) : null;
+    if (!date) {
+      errors.push(`Row ${i + 1} "${employeeName}": invalid date "${dateVal}"`);
+      continue;
+    }
+
+    const expr1 = String(row[COL.EXPR1] ?? '').trim();
+    const expr2 = String(row[COL.EXPR2] ?? '').trim();
+    const isIn = expr1.toLowerCase() === 'in';
+    const isOut = expr2.toLowerCase() === 'out';
+
+    const time = dayFractionToTime(row[COL.PUNCH]);
+    const regMinutes = isOut && row[COL.REG] != null ? Number(row[COL.REG]) || 0 : 0;
+    const otMinutes = isOut && row[COL.OT] != null ? (Number(row[COL.OT]) || 0) + (Number(row[COL.OT2]) || 0) : 0;
+
+    punches.push({
+      employeeName: employeeName.trim(),
+      employeeIdRaw: Number(row[COL.EMPLOYEE_ID]) || 0,
+      pinNumber: Number(row[COL.PIN_NUMBER]) || 0,
+      date,
+      time,
+      isIn,
+      isOut,
+      regMinutes,
+      otMinutes,
+      workCode: row[COL.WORK_CODE] != null ? String(row[COL.WORK_CODE]) : null,
+      codeName: row[COL.CODE_NAME] != null ? String(row[COL.CODE_NAME]) : null,
+      site: row[COL.SITE] != null ? String(row[COL.SITE]) : null,
+      mp: row[COL.MP] ? 1 : 0,
+    });
+
+    // Cache employee lookup
+    const name = employeeName.trim();
+    if (!nameCache.has(name)) {
+      const match = matchEmployeeByName(name);
+      nameCache.set(name, match);
+      if (match) {
+        matchedMap.set(name, { rawName: name, employeeId: match.employee_id, employeeName: match.employee_name });
+      }
+    }
+    if (!nameCache.get(name) && !unmatchedMap.has(name)) {
+      unmatchedMap.set(name, {
+        rawName: name,
+        employeeIdRaw: Number(row[COL.EMPLOYEE_ID]) || 0,
+        pinNumber: Number(row[COL.PIN_NUMBER]) || 0,
+      });
+    }
+  }
+
+  // Group consecutive In->Out pairs by employee+date
+  const records: ParsedAttendanceRecord[] = [];
+
+  // Group punches by employee+date, preserving order
+  const groups = new Map<string, PunchEntry[]>();
+  for (const punch of punches) {
+    const key = `${punch.employeeName}||${punch.date}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(punch);
+  }
+
+  for (const [, punchList] of groups) {
+    const first = punchList[0];
+    const match = nameCache.get(first.employeeName);
+
+    // Pair consecutive In -> Out
+    let i = 0;
+    while (i < punchList.length) {
+      const current = punchList[i];
+
+      if (current.isIn) {
+        // Look for the next Out for this employee+date
+        const next = i + 1 < punchList.length ? punchList[i + 1] : null;
+        if (next && next.isOut) {
+          // Paired In/Out
+          records.push({
+            employee_name_raw: first.employeeName,
+            employee_id: match?.employee_id ?? null,
+            employee_id_raw: first.employeeIdRaw,
+            pin_number: first.pinNumber,
+            date: first.date,
+            punch_in: current.time,
+            punch_out: next.time,
+            reg_hours: Math.round((next.regMinutes / 60) * 100) / 100,
+            ot_hours: Math.round((next.otMinutes / 60) * 100) / 100,
+            work_code: current.workCode,
+            code_name: current.codeName,
+            site: current.site,
+            missing_punch: current.mp || next.mp,
+          });
+          i += 2;
+        } else {
+          // In without Out - missing punch
+          records.push({
+            employee_name_raw: first.employeeName,
+            employee_id: match?.employee_id ?? null,
+            employee_id_raw: first.employeeIdRaw,
+            pin_number: first.pinNumber,
+            date: first.date,
+            punch_in: current.time,
+            punch_out: null,
+            reg_hours: 0,
+            ot_hours: 0,
+            work_code: current.workCode,
+            code_name: current.codeName,
+            site: current.site,
+            missing_punch: 1,
+          });
+          i += 1;
+        }
+      } else if (current.isOut) {
+        // Out without In - missing punch
+        records.push({
+          employee_name_raw: first.employeeName,
+          employee_id: match?.employee_id ?? null,
+          employee_id_raw: first.employeeIdRaw,
+          pin_number: first.pinNumber,
+          date: first.date,
+          punch_in: null,
+          punch_out: current.time,
+          reg_hours: Math.round((current.regMinutes / 60) * 100) / 100,
+          ot_hours: Math.round((current.otMinutes / 60) * 100) / 100,
+          work_code: current.workCode,
+          code_name: current.codeName,
+          site: current.site,
+          missing_punch: 1,
+        });
+        i += 1;
+      } else {
+        // No In/Out designation - standalone record
+        records.push({
+          employee_name_raw: first.employeeName,
+          employee_id: match?.employee_id ?? null,
+          employee_id_raw: first.employeeIdRaw,
+          pin_number: first.pinNumber,
+          date: first.date,
+          punch_in: current.time,
+          punch_out: null,
+          reg_hours: Math.round((current.regMinutes / 60) * 100) / 100,
+          ot_hours: Math.round((current.otMinutes / 60) * 100) / 100,
+          work_code: current.workCode,
+          code_name: current.codeName,
+          site: current.site,
+          missing_punch: current.mp,
+        });
+        i += 1;
+      }
+    }
+  }
+
+  return {
+    records,
+    unmatched: Array.from(unmatchedMap.values()),
+    matched: Array.from(matchedMap.values()),
+    errors,
+  };
+}
+
+export function confirmAttendanceImport(data: {
+  records: ParsedAttendanceRecord[];
+  manualMappings: { rawName: string; employeeId: number }[];
+  updateNames: boolean;
+}): AttendanceImportResult {
+  const { records, manualMappings, updateNames } = data;
+  const errors: string[] = [];
+  const unmatchedNames: string[] = [];
+
+  // Build mapping lookup
+  const mappingLookup = new Map<string, number>();
+  for (const m of manualMappings) {
+    mappingLookup.set(m.rawName, m.employeeId);
+  }
+
+  // Apply manual mappings to records
+  const finalRecords = records.map(r => {
+    const mapped = mappingLookup.get(r.employee_name_raw);
+    if (mapped != null) {
+      return { ...r, employee_id: mapped };
+    }
+    if (r.employee_id == null) {
+      unmatchedNames.push(r.employee_name_raw);
+    }
+    return r;
+  });
+
+  // Update employee names in the DB for manual mappings
+  if (updateNames || manualMappings.length > 0) {
+    for (const m of manualMappings) {
+      try {
+        updateEmployee(m.employeeId, { employee_name: m.rawName }, 'attendance-import');
+      } catch (err: any) {
+        errors.push(`Failed to update name for employee ${m.employeeId}: ${err.message}`);
+      }
+    }
+  }
 
   // Generate batch ID
   const batchId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // Cache employee name lookups
-  const nameCache = new Map<string, { employee_id: number; employee_name: string } | null>();
+  // Import all records
+  const importRecords = finalRecords.map(r => ({
+    employee_id: r.employee_id,
+    employee_name_raw: r.employee_name_raw,
+    date: r.date,
+    punch_in: r.punch_in,
+    punch_out: r.punch_out,
+    reg_hours: r.reg_hours,
+    ot_hours: r.ot_hours,
+    work_code: r.work_code,
+    code_name: r.code_name,
+    site: r.site,
+    missing_punch: r.missing_punch,
+  }));
 
-  // Group punch In/Out rows by employee+date to pair them
-  const punchGroups = new Map<string, { in_time: string | null; out_time: string | null; row: Record<string, any> }>();
-
-  for (const rawRow of rawRows) {
-    const row = trimRowKeys(rawRow);
-    const employeeName = row['Employee Name'];
-    if (!employeeName || typeof employeeName !== 'string') {
-      skipped++;
-      continue;
-    }
-
-    const mapped: Record<string, any> = {};
-    for (const [excelCol, dbCol] of Object.entries(ATTENDANCE_COLUMN_MAP)) {
-      mapped[dbCol] = row[excelCol] ?? null;
-    }
-
-    const date = parseDate(mapped.date);
-    if (!date) {
-      errors.push(`Row "${employeeName}": invalid date "${mapped.date}"`);
-      skipped++;
-      continue;
-    }
-
-    const punch = mapped.punch?.toString()?.trim()?.toLowerCase();
-    const key = `${employeeName}||${date}||${mapped.work_code || ''}`;
-
-    if (!punchGroups.has(key)) {
-      punchGroups.set(key, { in_time: null, out_time: null, row: mapped });
-    }
-
-    const group = punchGroups.get(key)!;
-    if (punch === 'in') {
-      // Try to parse a time from Expr1/Expr2 columns or the row itself
-      const time = parseTime(row['Expr1']) || parseTime(row['Expr2']) || parseTime(row['Date']);
-      group.in_time = time;
-      // Update row data with latest info
-      Object.assign(group.row, mapped);
-    } else if (punch === 'out') {
-      const time = parseTime(row['Expr1']) || parseTime(row['Expr2']) || parseTime(row['Date']);
-      group.out_time = time;
-      // Prefer reg/OT from the out punch row (usually has the totals)
-      if (mapped.reg_hours != null) group.row.reg_hours = mapped.reg_hours;
-      if (mapped.ot_hours != null) group.row.ot_hours = mapped.ot_hours;
-      if (mapped.missing_punch != null) group.row.missing_punch = mapped.missing_punch;
-    } else {
-      // Single row with no In/Out distinction - store as-is
-      group.row = mapped;
-    }
-  }
-
-  // Build records from grouped punches
-  const records: {
-    employee_id: number | null;
-    employee_name_raw: string;
-    date: string;
-    punch_in: string | null;
-    punch_out: string | null;
-    reg_hours: number;
-    ot_hours: number;
-    work_code: string | null;
-    code_name: string | null;
-    site: string | null;
-    missing_punch: number;
-  }[] = [];
-
-  for (const [, group] of punchGroups) {
-    const row = group.row;
-    const employeeName = row.employee_name?.toString() || '';
-    const date = parseDate(row.date);
-    if (!date) continue;
-
-    // Lookup employee
-    if (!nameCache.has(employeeName)) {
-      nameCache.set(employeeName, matchEmployeeByName(employeeName));
-    }
-    const match = nameCache.get(employeeName);
-    if (!match) {
-      unmatchedSet.add(employeeName);
-    }
-
-    const regHours = row.reg_hours != null ? Number(row.reg_hours) || 0 : 0;
-    const otHours = row.ot_hours != null ? Number(row.ot_hours) || 0 : 0;
-    const mp = row.missing_punch ? 1 : 0;
-
-    records.push({
-      employee_id: match?.employee_id || null,
-      employee_name_raw: employeeName,
-      date,
-      punch_in: group.in_time,
-      punch_out: group.out_time,
-      reg_hours: regHours,
-      ot_hours: otHours,
-      work_code: row.work_code?.toString() || null,
-      code_name: row.code_name?.toString() || null,
-      site: row.site?.toString() || null,
-      missing_punch: mp,
-    });
-  }
-
-  // Import all records in a single transaction
+  let imported = 0;
   try {
-    importAttendanceBatch(records, batchId);
-    imported = records.length;
+    importAttendanceBatch(importRecords, batchId);
+    imported = importRecords.length;
   } catch (err: any) {
     errors.push(`Batch import failed: ${err.message}`);
   }
 
+  const uniqueUnmatched = [...new Set(unmatchedNames)];
+
   return {
     imported,
-    skipped,
-    unmatched: Array.from(unmatchedSet),
+    skipped: 0,
+    unmatched: uniqueUnmatched,
     errors,
   };
 }

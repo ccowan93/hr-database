@@ -3,7 +3,7 @@ import { api } from '../api';
 import CalendarGrid from '../components/CalendarGrid';
 import AttendanceDayDetail from '../components/AttendanceDayDetail';
 import AttendanceImportDialog from '../components/AttendanceImportDialog';
-import type { AttendanceRecord, AttendanceImportResult, AttendanceSummary } from '../types/attendance';
+import type { AttendanceRecord, AttendanceSummary, ParsedAttendanceResult, AttendanceImportBatch } from '../types/attendance';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -21,8 +21,14 @@ export default function AttendanceCalendar() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<AttendanceImportResult | null>(null);
+  const [parseResult, setParseResult] = useState<ParsedAttendanceResult | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [imports, setImports] = useState<AttendanceImportBatch[]>([]);
+  const [showImports, setShowImports] = useState(false);
+  const [confirmDeleteBatch, setConfirmDeleteBatch] = useState<string | null>(null);
+  const [deletingBatch, setDeletingBatch] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Load employees and departments
   useEffect(() => {
@@ -31,6 +37,11 @@ export default function AttendanceCalendar() {
     });
     api.getDepartments().then(setDepartments);
   }, []);
+
+  // Load imports list
+  useEffect(() => {
+    api.getAttendanceImports().then(setImports);
+  }, [reloadKey]);
 
   // Compute date range for current month
   const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -47,20 +58,8 @@ export default function AttendanceCalendar() {
         } else if (department) {
           data = await api.getAttendanceByDept(department, startDate, endDate);
         } else {
-          // Get all attendance for the month (use a broad query)
-          data = await api.getAttendance(0, startDate, endDate);
-          // If no specific employee, we need all records - use department query with empty string won't work
-          // Fetch via summary approach or get all
-          data = await api.getAttendanceByDept('', startDate, endDate).catch(() => []);
-          if (data.length === 0) {
-            // Fallback: get all employees' attendance
-            const allData: AttendanceRecord[] = [];
-            for (const emp of employees.slice(0, 100)) {
-              const empData = await api.getAttendance(emp.id, startDate, endDate);
-              allData.push(...empData);
-            }
-            data = allData;
-          }
+          // Use the new getAllAttendance endpoint
+          data = await api.getAllAttendance(startDate, endDate);
         }
         setRecords(data);
 
@@ -77,7 +76,7 @@ export default function AttendanceCalendar() {
       setLoading(false);
     };
     fetchData();
-  }, [year, month, employeeId, department, employees.length]);
+  }, [year, month, employeeId, department, employees.length, reloadKey]);
 
   // Build day data map for calendar
   const dayDataMap = useMemo(() => {
@@ -125,11 +124,40 @@ export default function AttendanceCalendar() {
   };
 
   const handleImport = async () => {
-    const result = await api.importAttendance();
-    if (result.errors.length === 1 && result.errors[0] === 'Import cancelled') return;
-    setImportResult(result);
-    // Reload data after import
-    setMonth(m => m); // trigger re-render
+    const result = await api.parseAttendance();
+    if (!result) return; // user cancelled file dialog
+    setParseResult(result);
+    setShowImportDialog(true);
+  };
+
+  const handleImportClose = () => {
+    setShowImportDialog(false);
+    setParseResult(null);
+  };
+
+  const handleImported = () => {
+    setReloadKey(k => k + 1);
+  };
+
+  const handleDeleteRecord = async (id: number) => {
+    await api.deleteAttendanceRecord(id);
+    setReloadKey(k => k + 1);
+  };
+
+  const handleDeleteRecords = async (ids: number[]) => {
+    await api.deleteAttendanceRecords(ids);
+    setReloadKey(k => k + 1);
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    setDeletingBatch(true);
+    try {
+      await api.deleteAttendanceBatch(batchId);
+      setConfirmDeleteBatch(null);
+      setReloadKey(k => k + 1);
+    } finally {
+      setDeletingBatch(false);
+    }
   };
 
   return (
@@ -140,16 +168,92 @@ export default function AttendanceCalendar() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Attendance Calendar</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track employee attendance from CompuTime101 imports</p>
         </div>
-        <button
-          onClick={handleImport}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-          </svg>
-          Import Attendance
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImports(!showImports)}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+              </svg>
+              Manage Imports
+            </button>
+            <button
+              onClick={handleImport}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Import Attendance
+            </button>
+          </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Expects WorkCodeDetail.xls from CompuTime101</span>
+        </div>
       </div>
+
+      {/* Manage Imports Panel */}
+      {showImports && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Import Batches</h3>
+            <button onClick={() => setShowImports(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {imports.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No import batches found.</p>
+          ) : (
+            <div className="space-y-2">
+              {imports.map((imp: any) => (
+                <div key={imp.import_batch_id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {imp.record_count} records
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {imp.start_date} to {imp.end_date} &middot; Imported {new Date(imp.imported_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div>
+                    {confirmDeleteBatch === imp.import_batch_id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-600 dark:text-red-400">Delete {imp.record_count} records?</span>
+                        <button
+                          onClick={() => handleDeleteBatch(imp.import_batch_id)}
+                          disabled={deletingBatch}
+                          className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded disabled:opacity-50"
+                        >
+                          {deletingBatch ? 'Deleting...' : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteBatch(null)}
+                          className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteBatch(imp.import_batch_id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="Delete this import batch"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -246,6 +350,8 @@ export default function AttendanceCalendar() {
                 date={selectedDate}
                 records={selectedRecords}
                 onClose={() => setSelectedDate(null)}
+                onDeleteRecord={handleDeleteRecord}
+                onDeleteRecords={handleDeleteRecords}
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -256,11 +362,13 @@ export default function AttendanceCalendar() {
         </div>
       )}
 
-      {/* Import Result Dialog */}
-      {importResult && (
+      {/* Import Dialog */}
+      {showImportDialog && parseResult && (
         <AttendanceImportDialog
-          result={importResult}
-          onClose={() => setImportResult(null)}
+          parseResult={parseResult}
+          employees={employees}
+          onClose={handleImportClose}
+          onImported={handleImported}
         />
       )}
     </div>
