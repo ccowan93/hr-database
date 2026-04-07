@@ -334,9 +334,11 @@ export function confirmAttendanceImport(data: {
   }));
 
   let imported = 0;
+  let skipped = 0;
   try {
-    importAttendanceBatch(importRecords, batchId);
-    imported = importRecords.length;
+    const result = importAttendanceBatch(importRecords, batchId);
+    imported = result.imported;
+    skipped = result.skipped;
   } catch (err: any) {
     errors.push(`Batch import failed: ${err.message}`);
   }
@@ -345,7 +347,7 @@ export function confirmAttendanceImport(data: {
 
   return {
     imported,
-    skipped: 0,
+    skipped,
     unmatched: uniqueUnmatched,
     errors,
   };

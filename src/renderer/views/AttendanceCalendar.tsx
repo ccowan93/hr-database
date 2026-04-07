@@ -3,7 +3,7 @@ import { api } from '../api';
 import CalendarGrid from '../components/CalendarGrid';
 import AttendanceDayDetail from '../components/AttendanceDayDetail';
 import AttendanceImportDialog from '../components/AttendanceImportDialog';
-import type { AttendanceRecord, AttendanceSummary, ParsedAttendanceResult, AttendanceImportBatch } from '../types/attendance';
+import type { AttendanceRecord, AttendanceSummary, ParsedAttendanceResult, AttendanceImportBatch, TimeOffRequest } from '../types/attendance';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -29,6 +29,7 @@ export default function AttendanceCalendar() {
   const [confirmDeleteBatch, setConfirmDeleteBatch] = useState<string | null>(null);
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -84,6 +85,15 @@ export default function AttendanceCalendar() {
           endDate,
         });
         setSummary(summaryData);
+
+        // Fetch approved time-off requests for this date range
+        const timeOff = await api.getTimeOffRequests({
+          status: 'approved',
+          startDate,
+          endDate,
+          ...(employeeId ? { employeeId } : {}),
+        });
+        setTimeOffRequests(timeOff);
       } catch (err) {
         console.error('Failed to load attendance:', err);
       }
@@ -113,12 +123,41 @@ export default function AttendanceCalendar() {
           ot_hours: record.ot_hours || 0,
           missing_punch: record.missing_punch === 1,
           has_time_off: false,
+          time_off_type: null,
           records: [record],
         });
       }
     }
+
+    // Overlay approved time-off requests
+    for (const req of timeOffRequests) {
+      // Expand date range into individual days
+      const start = new Date(req.start_date + 'T00:00:00');
+      const end = new Date(req.end_date + 'T00:00:00');
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const existing = map.get(dateStr);
+        if (existing) {
+          existing.has_time_off = true;
+          existing.time_off_type = req.request_type;
+        } else {
+          map.set(dateStr, {
+            present: false,
+            punch_in: null,
+            punch_out: null,
+            reg_hours: 0,
+            ot_hours: 0,
+            missing_punch: false,
+            has_time_off: true,
+            time_off_type: req.request_type,
+            records: [],
+          });
+        }
+      }
+    }
+
     return map;
-  }, [records]);
+  }, [records, timeOffRequests]);
 
   // Get records for selected date
   const selectedRecords = selectedDate

@@ -8,6 +8,7 @@ interface DayData {
   ot_hours: number;
   missing_punch: boolean;
   has_time_off: boolean;
+  time_off_type?: string | null;
   records: any[];
 }
 
@@ -120,7 +121,9 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
                     </div>
                   )}
                   {data.has_time_off && (
-                    <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400">Time Off</div>
+                    <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                      {data.time_off_type ? data.time_off_type.charAt(0).toUpperCase() + data.time_off_type.slice(1).replace('_', ' ') : 'Time Off'}
+                    </div>
                   )}
                 </div>
               )}

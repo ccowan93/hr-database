@@ -919,17 +919,34 @@ export function importAttendanceBatch(
     missing_punch: number;
   }[],
   batchId: string
-) {
-  const stmt = db.prepare(`
+): { imported: number; skipped: number } {
+  const insertStmt = db.prepare(`
     INSERT INTO attendance_records (employee_id, employee_name_raw, date, punch_in, punch_out, reg_hours, ot_hours, work_code, code_name, site, missing_punch, import_batch_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const checkStmt = db.prepare(`
+    SELECT id FROM attendance_records
+    WHERE employee_name_raw = ? AND date = ? AND COALESCE(punch_in, '') = ? AND COALESCE(punch_out, '') = ?
+    LIMIT 1
+  `);
+
+  let imported = 0;
+  let skipped = 0;
+
   const insertAll = db.transaction(() => {
     for (const r of records) {
-      stmt.run(r.employee_id, r.employee_name_raw, r.date, r.punch_in, r.punch_out, r.reg_hours, r.ot_hours, r.work_code, r.code_name, r.site, r.missing_punch, batchId);
+      // Check for duplicate
+      const existing = checkStmt.get(r.employee_name_raw, r.date, r.punch_in || '', r.punch_out || '');
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      insertStmt.run(r.employee_id, r.employee_name_raw, r.date, r.punch_in, r.punch_out, r.reg_hours, r.ot_hours, r.work_code, r.code_name, r.site, r.missing_punch, batchId);
+      imported++;
     }
   });
   insertAll();
+  return { imported, skipped };
 }
 
 export function getAttendanceByEmployee(employeeId: number, startDate: string, endDate: string) {
