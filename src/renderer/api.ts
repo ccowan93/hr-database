@@ -77,8 +77,12 @@ declare global {
       // Attendance Reports
       getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => Promise<OvertimeReportEntry[]>;
       getAbsenteeismReport: (startDate: string, endDate: string) => Promise<AbsenteeismReportEntry[]>;
-      getTardinessReport: (startDate: string, endDate: string, threshold?: string) => Promise<TardinessReportEntry[]>;
+      getTardinessReport: (startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) => Promise<TardinessReportEntry[]>;
       getTimeOffUsageReport: (year: number) => Promise<TimeOffUsageEntry[]>;
+
+      // Shift Configuration
+      getShiftConfig: () => Promise<{ dayShiftStart: string; nightShiftStart: string }>;
+      saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => Promise<boolean>;
 
       // OneDrive Cloud Backup
       onedriveGetStatus: () => Promise<{ connected: boolean; accountName: string | null; lastBackup: string | null; backupFolder: string; backupIntervalHours: number; clientConfigured: boolean }>;

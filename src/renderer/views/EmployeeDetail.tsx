@@ -147,6 +147,7 @@ export default function EmployeeDetail() {
         { label: 'Department', value: employee.current_department },
         { label: 'Position', value: employee.current_position },
         { label: 'Supervisory Role', value: employee.supervisory_role === 'Y' ? 'Yes' : 'No' },
+        { label: 'Shift', value: employee.shift === 'night' ? 'Night' : 'Day' },
         { label: 'Date of Hire', value: employee.doh },
         { label: 'Years of Service', value: employee.years_of_service },
         ...(isArchived ? [{ label: 'Archived On', value: employee.archived_at }] : []),

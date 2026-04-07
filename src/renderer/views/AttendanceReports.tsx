@@ -28,7 +28,8 @@ export default function AttendanceReports() {
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [groupBy, setGroupBy] = useState<'employee' | 'department'>('employee');
   const [year, setYear] = useState(new Date().getFullYear());
-  const [threshold, setThreshold] = useState('09:00');
+  const [dayThreshold, setDayThreshold] = useState('07:00');
+  const [nightThreshold, setNightThreshold] = useState('19:00');
 
   // Report data
   const [overtimeData, setOvertimeData] = useState<OvertimeReportEntry[]>([]);
@@ -37,9 +38,17 @@ export default function AttendanceReports() {
   const [timeOffData, setTimeOffData] = useState<TimeOffUsageEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Load shift config on mount
+  useEffect(() => {
+    api.getShiftConfig().then((config: { dayShiftStart: string; nightShiftStart: string }) => {
+      setDayThreshold(config.dayShiftStart);
+      setNightThreshold(config.nightShiftStart);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadReport();
-  }, [activeTab, startDate, endDate, groupBy, year, threshold]);
+  }, [activeTab, startDate, endDate, groupBy, year, dayThreshold, nightThreshold]);
 
   const loadReport = async () => {
     setLoading(true);
@@ -52,7 +61,7 @@ export default function AttendanceReports() {
           setAbsenteeismData(await api.getAbsenteeismReport(startDate, endDate));
           break;
         case 'tardiness':
-          setTardinessData(await api.getTardinessReport(startDate, endDate, threshold));
+          setTardinessData(await api.getTardinessReport(startDate, endDate, dayThreshold, nightThreshold));
           break;
         case 'timeoff':
           setTimeOffData(await api.getTimeOffUsageReport(year));
@@ -124,15 +133,26 @@ export default function AttendanceReports() {
               </div>
             )}
             {activeTab === 'tardiness' && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Late After</label>
-                <input
-                  type="time"
-                  value={threshold}
-                  onChange={e => setThreshold(e.target.value)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Day Shift Late After</label>
+                  <input
+                    type="time"
+                    value={dayThreshold}
+                    onChange={e => setDayThreshold(e.target.value)}
+                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Night Shift Late After</label>
+                  <input
+                    type="time"
+                    value={nightThreshold}
+                    onChange={e => setNightThreshold(e.target.value)}
+                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+              </>
             )}
           </>
         ) : (
@@ -267,6 +287,7 @@ function TardinessReport({ data }: { data: TardinessReportEntry[] }) {
         columns={[
           { key: 'employee_name', label: 'Employee' },
           { key: 'current_department', label: 'Department' },
+          { key: 'shift', label: 'Shift', format: (v: string) => (v === 'night' ? 'Night' : 'Day') },
           { key: 'late_count', label: 'Late Arrivals', align: 'right' },
           { key: 'days_late', label: 'Days Late', align: 'right' },
         ]}

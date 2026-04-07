@@ -137,6 +137,7 @@ export interface TardinessReportEntry {
   employee_id: number;
   employee_name: string;
   current_department: string | null;
+  shift?: string;
   late_count: number;
   days_late: number;
 }

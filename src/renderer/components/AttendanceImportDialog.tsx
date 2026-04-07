@@ -15,29 +15,42 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
   const [step, setStep] = useState<Step>('review');
   const [manualMappings, setManualMappings] = useState<Map<string, number>>(new Map());
   const [searchTerms, setSearchTerms] = useState<Map<string, string>>(new Map());
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<AttendanceImportResult | null>(null);
   const [updateNames] = useState(true);
 
-  const handleMapping = (rawName: string, employeeId: number | null) => {
+  const handleMapping = (rawName: string, employeeId: number | null, employeeName?: string) => {
     const next = new Map(manualMappings);
+    const nextSearch = new Map(searchTerms);
     if (employeeId == null) {
       next.delete(rawName);
+      nextSearch.set(rawName, '');
     } else {
       next.set(rawName, employeeId);
+      nextSearch.set(rawName, employeeName || '');
     }
     setManualMappings(next);
+    setSearchTerms(nextSearch);
+    setOpenDropdown(null);
   };
 
   const handleSearchChange = (rawName: string, term: string) => {
     const next = new Map(searchTerms);
     next.set(rawName, term);
     setSearchTerms(next);
+    // Clear mapping if user edits the text after selecting
+    if (manualMappings.has(rawName)) {
+      const nextMappings = new Map(manualMappings);
+      nextMappings.delete(rawName);
+      setManualMappings(nextMappings);
+    }
+    setOpenDropdown(rawName);
   };
 
   const filteredEmployees = (rawName: string) => {
     const term = (searchTerms.get(rawName) ?? '').toLowerCase();
-    if (!term) return employees;
-    return employees.filter(e => e.employee_name.toLowerCase().includes(term));
+    if (!term) return employees.slice(0, 50);
+    return employees.filter(e => e.employee_name.toLowerCase().includes(term)).slice(0, 20);
   };
 
   const totalMapped = parseResult.matched.length + manualMappings.size;
@@ -145,23 +158,48 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
                       </div>
                       <span className="text-gray-400 text-sm flex-shrink-0">-&gt;</span>
                       <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          placeholder="Search employees..."
-                          value={searchTerms.get(u.rawName) ?? ''}
-                          onChange={e => handleSearchChange(u.rawName, e.target.value)}
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg mb-1 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-                        />
-                        <select
-                          value={manualMappings.get(u.rawName) ?? ''}
-                          onChange={e => handleMapping(u.rawName, e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100"
-                        >
-                          <option value="">-- Skip (import unlinked) --</option>
-                          {filteredEmployees(u.rawName).map(emp => (
-                            <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Type to search employees..."
+                            value={searchTerms.get(u.rawName) ?? ''}
+                            onChange={e => handleSearchChange(u.rawName, e.target.value)}
+                            onFocus={() => setOpenDropdown(u.rawName)}
+                            className={`w-full px-3 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 ${
+                              manualMappings.has(u.rawName)
+                                ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                            }`}
+                          />
+                          {manualMappings.has(u.rawName) && (
+                            <button
+                              onClick={() => handleMapping(u.rawName, null)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                              title="Clear selection"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        {openDropdown === u.rawName && !manualMappings.has(u.rawName) && (
+                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                            {filteredEmployees(u.rawName).length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No matches found</div>
+                            ) : (
+                              filteredEmployees(u.rawName).map(emp => (
+                                <button
+                                  key={emp.id}
+                                  onClick={() => handleMapping(u.rawName, emp.id, emp.employee_name)}
+                                  className="w-full text-left px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                >
+                                  {emp.employee_name}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

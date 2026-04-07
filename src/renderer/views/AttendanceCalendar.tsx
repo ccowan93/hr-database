@@ -29,6 +29,20 @@ export default function AttendanceCalendar() {
   const [confirmDeleteBatch, setConfirmDeleteBatch] = useState<string | null>(null);
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchRef = React.useRef<HTMLDivElement>(null);
+
+  // Close search results on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load employees and departments
   useEffect(() => {
@@ -254,6 +268,60 @@ export default function AttendanceCalendar() {
           )}
         </div>
       )}
+
+      {/* Employee Search Bar */}
+      <div className="relative" ref={searchRef}>
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search Employee</label>
+        <div className="relative">
+          <input
+            type="text"
+            value={employeeSearch}
+            onChange={e => {
+              setEmployeeSearch(e.target.value);
+              setShowSearchResults(e.target.value.length > 0);
+            }}
+            onFocus={() => { if (employeeSearch.length > 0) setShowSearchResults(true); }}
+            placeholder="Type to search employees..."
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 pr-8"
+          />
+          {employeeSearch && (
+            <button
+              onClick={() => {
+                setEmployeeSearch('');
+                setEmployeeId(null);
+                setShowSearchResults(false);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {showSearchResults && employeeSearch.length > 0 && (() => {
+          const query = employeeSearch.toLowerCase();
+          const filtered = employees.filter(e => e.employee_name.toLowerCase().includes(query)).slice(0, 10);
+          return filtered.length > 0 ? (
+            <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              {filtered.map(emp => (
+                <button
+                  key={emp.id}
+                  onClick={() => {
+                    setEmployeeId(emp.id);
+                    setEmployeeSearch(emp.employee_name);
+                    setDepartment('');
+                    setShowSearchResults(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {emp.employee_name}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })()}
+      </div>
 
       {/* Filters */}
       <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">

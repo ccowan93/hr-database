@@ -21,6 +21,7 @@ export interface Employee {
   current_pay_rate: number | null;
   department_transfers: string | null;
   date_of_transfer: string | null;
+  shift?: 'day' | 'night';
   status?: 'active' | 'archived';
   archived_at?: string | null;
   photo_path?: string | null;

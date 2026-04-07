@@ -43,9 +43,18 @@ export default function Settings() {
   const [showRestoreList, setShowRestoreList] = useState(false);
   const [restoreFiles, setRestoreFiles] = useState<{ name: string; id: string; lastModified: string }[]>([]);
 
+  // Shift config state
+  const [dayShiftStart, setDayShiftStart] = useState('07:00');
+  const [nightShiftStart, setNightShiftStart] = useState('19:00');
+  const [shiftMessage, setShiftMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     api.onedriveGetStatus().then(setOdStatus).catch(() => {});
     api.localBackupGetStatus().then(setLbStatus).catch(() => {});
+    api.getShiftConfig().then((config: { dayShiftStart: string; nightShiftStart: string }) => {
+      setDayShiftStart(config.dayShiftStart);
+      setNightShiftStart(config.nightShiftStart);
+    }).catch(() => {});
   }, []);
 
   const handleEnableLocalBackup = async () => {
@@ -671,6 +680,53 @@ export default function Settings() {
             </div>
           </div>
         )}
+
+        {/* Shift Configuration */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Shift Configuration</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Set the start times for day and night shifts. These are used for tardiness tracking.</p>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Day Shift Start</label>
+                <input
+                  type="time"
+                  value={dayShiftStart}
+                  onChange={e => setDayShiftStart(e.target.value)}
+                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Night Shift Start</label>
+                <input
+                  type="time"
+                  value={nightShiftStart}
+                  onChange={e => setNightShiftStart(e.target.value)}
+                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+            </div>
+            {shiftMessage && (
+              <p className={`text-sm ${shiftMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {shiftMessage.text}
+              </p>
+            )}
+            <button
+              onClick={async () => {
+                try {
+                  await api.saveShiftConfig({ dayShiftStart, nightShiftStart });
+                  setShiftMessage({ type: 'success', text: 'Shift configuration saved.' });
+                } catch {
+                  setShiftMessage({ type: 'error', text: 'Failed to save shift configuration.' });
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Save Shift Settings
+            </button>
+          </div>
+        </div>
 
         {/* About & Updates */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">

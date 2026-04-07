@@ -17,6 +17,10 @@ export interface AppConfig {
     intervalHours: number;
     keepCount: number;
   };
+  shifts: {
+    dayShiftStart: string;
+    nightShiftStart: string;
+  };
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -33,6 +37,10 @@ const DEFAULT_CONFIG: AppConfig = {
     lastBackup: null,
     intervalHours: 24,
     keepCount: 7,
+  },
+  shifts: {
+    dayShiftStart: '07:00',
+    nightShiftStart: '19:00',
   },
 };
 
@@ -53,6 +61,7 @@ export function loadConfig(): AppConfig {
         ...data,
         onedrive: { ...DEFAULT_CONFIG.onedrive, ...data.onedrive },
         localBackup: { ...DEFAULT_CONFIG.localBackup, ...data.localBackup },
+        shifts: { ...DEFAULT_CONFIG.shifts, ...data.shifts },
       };
     }
   } catch (err) {
@@ -68,6 +77,9 @@ export function saveConfig(updates: Partial<AppConfig>): AppConfig {
   }
   if (updates.localBackup) {
     config.localBackup = { ...config.localBackup, ...updates.localBackup };
+  }
+  if (updates.shifts) {
+    config.shifts = { ...config.shifts, ...updates.shifts };
   }
   try {
     fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));

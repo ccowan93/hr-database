@@ -91,7 +91,7 @@ const electronAPI = {
   // Attendance Reports
   getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => ipcRenderer.invoke('db:get-overtime-report', startDate, endDate, groupBy),
   getAbsenteeismReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-absenteeism-report', startDate, endDate),
-  getTardinessReport: (startDate: string, endDate: string, threshold?: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate, threshold),
+  getTardinessReport: (startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate, dayThreshold, nightThreshold),
   getTimeOffUsageReport: (year: number) => ipcRenderer.invoke('db:get-timeoff-usage-report', year),
 
   // OneDrive Cloud Backup
@@ -113,6 +113,10 @@ const electronAPI = {
   localBackupList: () => ipcRenderer.invoke('local-backup:list'),
   localBackupRestore: (backupPath: string) => ipcRenderer.invoke('local-backup:restore', backupPath),
   localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => ipcRenderer.invoke('local-backup:update-settings', settings),
+
+  // Shift Configuration
+  getShiftConfig: () => ipcRenderer.invoke('app:get-shift-config'),
+  saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => ipcRenderer.invoke('app:save-shift-config', config),
 
   // App Updates
   checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),

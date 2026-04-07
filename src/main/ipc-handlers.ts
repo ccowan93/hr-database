@@ -28,7 +28,7 @@ import { exportEmployeesToXlsx } from './export-xlsx';
 import { exportEmployeePDF, exportDashboardPDF } from './export-pdf';
 import { signIn as onedriveSignIn, signOut as onedriveSignOut, uploadBackup, restoreFromOneDrive, downloadBackupFile, getOneDriveStatus, setClientId, startBackupScheduler } from './onedrive-backup';
 import { runLocalBackup, getLocalBackupStatus, listLocalBackups, restoreLocalBackup, startLocalBackupScheduler } from './local-backup';
-import { saveConfig } from './app-config';
+import { saveConfig, getConfig } from './app-config';
 
 export function registerIpcHandlers() {
   // ── Employee CRUD ──
@@ -266,8 +266,8 @@ export function registerIpcHandlers() {
     getOvertimeReport(startDate, endDate, groupBy));
   ipcMain.handle('db:get-absenteeism-report', (_event, startDate: string, endDate: string) =>
     getAbsenteeismReport(startDate, endDate));
-  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string, threshold?: string) =>
-    getTardinessReport(startDate, endDate, threshold));
+  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) =>
+    getTardinessReport(startDate, endDate, dayThreshold, nightThreshold));
   ipcMain.handle('db:get-timeoff-usage-report', (_event, year: number) => getTimeOffUsageReport(year));
 
   // ── OneDrive Cloud Backup ──
@@ -326,6 +326,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('app:open-release-page', async (_event, url?: string) => {
     const { openReleasePage } = await import('./update-checker');
     openReleasePage(url);
+  });
+
+  // ── Shift Configuration ──
+  ipcMain.handle('app:get-shift-config', () => {
+    const config = getConfig();
+    return config.shifts || { dayShiftStart: '07:00', nightShiftStart: '19:00' };
+  });
+
+  ipcMain.handle('app:save-shift-config', (_event, shiftConfig: { dayShiftStart: string; nightShiftStart: string }) => {
+    saveConfig({ shifts: shiftConfig });
+    return true;
   });
 
   ipcMain.handle('app:get-version', () => {

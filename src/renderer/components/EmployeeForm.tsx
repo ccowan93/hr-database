@@ -28,6 +28,7 @@ const FIELD_GROUPS = [
       { key: 'current_department', label: 'Department', type: 'lookup', lookupKey: 'departments' },
       { key: 'current_position', label: 'Position', type: 'text' },
       { key: 'supervisory_role', label: 'Supervisory Role', type: 'select', options: ['Y', 'N'] },
+      { key: 'shift', label: 'Shift', type: 'select', options: ['day', 'night'] },
       { key: 'doh', label: 'Date of Hire', type: 'date' },
     ],
   },

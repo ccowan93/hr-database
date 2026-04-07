@@ -90,6 +90,9 @@ export function initDatabase(): Database.Database {
   // Migration: add photo_path column
   try { db.exec(`ALTER TABLE employees ADD COLUMN photo_path TEXT`); } catch (_) {}
 
+  // Migration: add shift column
+  try { db.exec(`ALTER TABLE employees ADD COLUMN shift TEXT DEFAULT 'day' CHECK(shift IN ('day','night'))`); } catch (_) {}
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS employee_notes (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1187,17 +1190,27 @@ export function getAbsenteeismReport(startDate: string, endDate: string) {
   `).all(endDate, startDate, startDate, endDate);
 }
 
-export function getTardinessReport(startDate: string, endDate: string, threshold: string = '09:00') {
+export function getTardinessReport(startDate: string, endDate: string, dayThreshold?: string, nightThreshold?: string) {
+  const { getConfig } = require('./app-config');
+  const config = getConfig();
+  const dayStart = dayThreshold || config.shifts?.dayShiftStart || '07:00';
+  const nightStart = nightThreshold || config.shifts?.nightShiftStart || '19:00';
+
   return db.prepare(`
-    SELECT ar.employee_id, e.employee_name, e.current_department,
+    SELECT ar.employee_id, e.employee_name, e.current_department, e.shift,
       COUNT(*) as late_count,
       COUNT(DISTINCT ar.date) as days_late
     FROM attendance_records ar
     JOIN employees e ON ar.employee_id = e.id
-    WHERE ar.date >= ? AND ar.date <= ? AND ar.punch_in > ? AND ar.punch_in IS NOT NULL
+    WHERE ar.date >= ? AND ar.date <= ?
+      AND ar.punch_in IS NOT NULL
+      AND (
+        (COALESCE(e.shift, 'day') = 'day' AND ar.punch_in > ?)
+        OR (COALESCE(e.shift, 'night') = 'night' AND ar.punch_in > ?)
+      )
     GROUP BY ar.employee_id
     ORDER BY late_count DESC
-  `).all(startDate, endDate, threshold);
+  `).all(startDate, endDate, dayStart, nightStart);
 }
 
 export function getTimeOffUsageReport(year: number) {
