@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, shell, app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -8,6 +8,7 @@ import {
   getAuditLog, getGlobalAuditLog, getGlobalAuditLogCount,
   getUpcomingBirthdays, getUpcomingAnniversaries, resetDatabase, getCountries, getDbPath, getDb, initDatabase,
   getEmployeeNotes, addEmployeeNote, updateEmployeeNote, deleteEmployeeNote,
+  addEmployeeFile, getEmployeeFiles, getEmployeeFile, deleteEmployeeFile,
   getLanguageDistribution, getMonthlyTurnover,
   getPayGrowthByDepartment, getTimeSinceLastRaise, getPayEquity,
   getAgeDistribution, getSupervisorRatio, getAvgAgeByDepartment,
@@ -21,6 +22,7 @@ import {
   getTimeOffBalances, upsertTimeOffBalance,
   getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport
 } from './database';
+import { extractText } from './ocr';
 import { importFromExcel } from './import-xlsx';
 import { importUpdateFromExcel } from './import-update-xlsx';
 import { parseAttendanceFile, confirmAttendanceImport } from './import-attendance';
@@ -177,6 +179,63 @@ export function registerIpcHandlers() {
     const ext = path.extname(emp.photo_path).toLowerCase().replace('.', '');
     const mime = ext === 'jpg' ? 'jpeg' : ext;
     return `data:image/${mime};base64,${data.toString('base64')}`;
+  });
+
+  // ── Employee Files ──
+  ipcMain.handle('db:upload-employee-file', async (_event, { employeeId, filePath }: { employeeId: number; filePath?: string }) => {
+    let sourcePath = filePath;
+    if (!sourcePath) {
+      const result = await dialog.showOpenDialog({
+        title: 'Select File to Attach',
+        properties: ['openFile'],
+      });
+      if (result.canceled || result.filePaths.length === 0) return null;
+      sourcePath = result.filePaths[0];
+    }
+    const fileName = path.basename(sourcePath);
+    const ext = path.extname(sourcePath).toLowerCase();
+    const filesDir = path.join(app.getPath('userData'), 'files', String(employeeId));
+    fs.mkdirSync(filesDir, { recursive: true });
+    const destPath = path.join(filesDir, fileName);
+    fs.copyFileSync(sourcePath, destPath);
+    const stats = fs.statSync(destPath);
+
+    // Run OCR on images
+    let ocrText = '';
+    try {
+      ocrText = await extractText(destPath);
+    } catch (_) {}
+
+    // Save OCR text file alongside original
+    if (ocrText) {
+      fs.writeFileSync(destPath + '.txt', ocrText, 'utf-8');
+    }
+
+    const record = addEmployeeFile({
+      employee_id: employeeId,
+      file_name: fileName,
+      file_path: destPath,
+      file_type: ext.replace('.', ''),
+      file_size: stats.size,
+      ocr_text: ocrText || undefined,
+    });
+    return record;
+  });
+
+  ipcMain.handle('db:get-employee-files', (_event, employeeId: number) => getEmployeeFiles(employeeId));
+
+  ipcMain.handle('db:delete-employee-file', (_event, id: number) => {
+    deleteEmployeeFile(id);
+    return true;
+  });
+
+  ipcMain.handle('db:open-employee-file', async (_event, id: number) => {
+    const file = getEmployeeFile(id);
+    if (file && fs.existsSync(file.file_path)) {
+      await shell.openPath(file.file_path);
+      return true;
+    }
+    return false;
   });
 
   // ── Reset Database ──

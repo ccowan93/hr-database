@@ -1,35 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText } from 'lucide-react';
 import { api } from '../api';
 import GlobalSearch from './GlobalSearch';
-
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: '📊' },
-];
-
-const timeTrackingSubItems = [
-  { path: '/time-tracking/calendar', label: 'Calendar', icon: '📅' },
-  { path: '/time-tracking/time-off', label: 'Time Off', icon: '✋' },
-  { path: '/time-tracking/reports', label: 'Reports', icon: '📈' },
-];
-
-const navItemsAfter = [
-  { path: '/employees', label: 'Employees', icon: '👥' },
-  { path: '/employees/new', label: 'Add Employee', icon: '➕' },
-  { path: '/audit-log', label: 'Audit Log', icon: '📋' },
-  { path: '/org-chart', label: 'Org Chart', icon: '🏢' },
-  { path: '/reports', label: 'Reports', icon: '📄' },
-];
 
 export default function Sidebar() {
   const location = useLocation();
   const [employeeCount, setEmployeeCount] = useState<number>(0);
   const isTimeTrackingActive = location.pathname.startsWith('/time-tracking');
+  const isEmployeesActive = location.pathname.startsWith('/employees') || location.pathname === '/org-chart';
   const [timeTrackingOpen, setTimeTrackingOpen] = useState(isTimeTrackingActive);
+  const [employeesOpen, setEmployeesOpen] = useState(isEmployeesActive);
 
   useEffect(() => {
     if (isTimeTrackingActive) setTimeTrackingOpen(true);
   }, [isTimeTrackingActive]);
+
+  useEffect(() => {
+    if (isEmployeesActive) setEmployeesOpen(true);
+  }, [isEmployeesActive]);
 
   useEffect(() => {
     api.getEmployeeCount().then(setEmployeeCount).catch(() => {});
@@ -70,23 +59,20 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map(item => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <span>{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          Dashboard
+        </NavLink>
 
         {/* Time Tracking expandable group */}
         <div>
@@ -99,7 +85,7 @@ export default function Sidebar() {
             }`}
           >
             <div className="flex items-center gap-3">
-              <span>🕐</span>
+              <Clock className="w-5 h-5" />
               Time Tracking
             </div>
             <svg
@@ -111,43 +97,142 @@ export default function Sidebar() {
           </button>
           {timeTrackingOpen && (
             <div className="ml-4 mt-1 space-y-1">
-              {timeTrackingSubItems.map(item => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`
-                  }
-                >
-                  <span className="text-xs">{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              ))}
+              <NavLink
+                to="/time-tracking/calendar"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <CalendarDays className="w-4 h-4" />
+                Calendar
+              </NavLink>
+              <NavLink
+                to="/time-tracking/time-off"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <CalendarOff className="w-4 h-4" />
+                Time Off
+              </NavLink>
+              <NavLink
+                to="/time-tracking/reports"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <BarChart3 className="w-4 h-4" />
+                Reports
+              </NavLink>
             </div>
           )}
         </div>
 
-        {navItemsAfter.map(item => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`
-            }
+        {/* Employees expandable group */}
+        <div>
+          <button
+            onClick={() => setEmployeesOpen(!employeesOpen)}
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              isEmployeesActive
+                ? 'bg-blue-600/20 text-blue-300'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
           >
-            <span>{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5" />
+              Employees
+            </div>
+            <svg
+              className={`w-4 h-4 transition-transform ${employeesOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {employeesOpen && (
+            <div className="ml-4 mt-1 space-y-1">
+              <NavLink
+                to="/employees"
+                end
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <Users className="w-4 h-4" />
+                Employee List
+              </NavLink>
+              <NavLink
+                to="/employees/new"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Employee
+              </NavLink>
+              <NavLink
+                to="/org-chart"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <Network className="w-4 h-4" />
+                Org Chart
+              </NavLink>
+            </div>
+          )}
+        </div>
+
+        <NavLink
+          to="/audit-log"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          <ClipboardList className="w-5 h-5" />
+          Audit Log
+        </NavLink>
+        <NavLink
+          to="/reports"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          <FileText className="w-5 h-5" />
+          Reports
+        </NavLink>
       </nav>
 
       <div className="p-4 border-t border-slate-700 space-y-2">

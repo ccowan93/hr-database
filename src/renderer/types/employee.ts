@@ -117,3 +117,15 @@ export interface ExportResult {
   path?: string;
   error?: string;
 }
+
+export interface EmployeeFile {
+  id: number;
+  employee_id: number;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  ocr_text: string | null;
+  uploaded_at: string;
+  notes: string | null;
+}

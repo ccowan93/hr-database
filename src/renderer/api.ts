@@ -1,4 +1,4 @@
-import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote } from './types/employee';
+import type { Employee, DashboardStats, EmployeeFilters, PayHistory, AuditLogEntry, BirthdayAlert, AnniversaryAlert, ExportResult, EmployeeNote, EmployeeFile } from './types/employee';
 import type { AttendanceRecord, AttendanceImportResult, AttendanceImportBatch, AttendanceSummary, TimeOffRequest, TimeOffBalance, OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, TimeOffUsageEntry, ParsedAttendanceResult, ConfirmImportData } from './types/attendance';
 
 declare global {
@@ -51,6 +51,12 @@ declare global {
       saveEmployeePhoto: (employeeId: number) => Promise<{ success: boolean; path?: string }>;
       removeEmployeePhoto: (employeeId: number) => Promise<boolean>;
       getEmployeePhoto: (employeeId: number) => Promise<string | null>;
+      // Employee Files
+      uploadEmployeeFile: (employeeId: number) => Promise<EmployeeFile | null>;
+      getEmployeeFiles: (employeeId: number) => Promise<EmployeeFile[]>;
+      deleteEmployeeFile: (id: number) => Promise<boolean>;
+      openEmployeeFile: (id: number) => Promise<boolean>;
+
       resetDatabase: () => Promise<boolean>;
       backupDatabase: () => Promise<{ success: boolean; path?: string; error?: string }>;
       restoreDatabase: () => Promise<{ success: boolean; error?: string }>;

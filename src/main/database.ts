@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 import { app } from 'electron';
 
 let db: Database.Database;
@@ -164,6 +165,22 @@ export function initDatabase(): Database.Database {
     );
   `);
 
+  // ── Employee Files (attachments with OCR) ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employee_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_type TEXT,
+      file_size INTEGER,
+      ocr_text TEXT,
+      uploaded_at TEXT DEFAULT (datetime('now')),
+      notes TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_employee_files_employee ON employee_files(employee_id);
+  `);
+
   // Auto-refresh computed fields on startup
   refreshComputedFields();
 
@@ -192,6 +209,7 @@ export function resetDatabase(): void {
   db.exec(`DELETE FROM time_off_balances`);
   db.exec(`DELETE FROM time_off_requests`);
   db.exec(`DELETE FROM attendance_records`);
+  db.exec(`DELETE FROM employee_files`);
   db.exec(`DELETE FROM employee_notes`);
   db.exec(`DELETE FROM audit_log`);
   db.exec(`DELETE FROM pay_history`);
@@ -847,6 +865,35 @@ export function updateEmployeeNote(noteId: number, content: string) {
 
 export function deleteEmployeeNote(noteId: number) {
   db.prepare('DELETE FROM employee_notes WHERE id = ?').run(noteId);
+}
+
+// ── Employee Files ──
+
+export function addEmployeeFile(data: { employee_id: number; file_name: string; file_path: string; file_type?: string; file_size?: number; ocr_text?: string; notes?: string }) {
+  const result = db.prepare(
+    'INSERT INTO employee_files (employee_id, file_name, file_path, file_type, file_size, ocr_text, notes) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(data.employee_id, data.file_name, data.file_path, data.file_type || null, data.file_size || null, data.ocr_text || null, data.notes || null);
+  return db.prepare('SELECT * FROM employee_files WHERE id = ?').get(result.lastInsertRowid);
+}
+
+export function getEmployeeFiles(employeeId: number) {
+  return db.prepare('SELECT * FROM employee_files WHERE employee_id = ? ORDER BY uploaded_at DESC').all(employeeId);
+}
+
+export function getEmployeeFile(id: number) {
+  return db.prepare('SELECT * FROM employee_files WHERE id = ?').get(id) as any;
+}
+
+export function deleteEmployeeFile(id: number) {
+  const file = db.prepare('SELECT * FROM employee_files WHERE id = ?').get(id) as any;
+  if (file) {
+    // Delete the actual file from disk
+    try { fs.unlinkSync(file.file_path); } catch (_) {}
+    // Delete the OCR text file if it exists
+    const txtPath = file.file_path + '.txt';
+    try { fs.unlinkSync(txtPath); } catch (_) {}
+  }
+  db.prepare('DELETE FROM employee_files WHERE id = ?').run(id);
 }
 
 // ── Bulk Update ──

@@ -65,6 +65,12 @@ const electronAPI = {
   saveEmployeePhoto: (employeeId: number) => ipcRenderer.invoke('db:save-employee-photo', employeeId),
   removeEmployeePhoto: (employeeId: number) => ipcRenderer.invoke('db:remove-employee-photo', employeeId),
   getEmployeePhoto: (employeeId: number) => ipcRenderer.invoke('db:get-employee-photo', employeeId),
+  // Employee Files
+  uploadEmployeeFile: (employeeId: number) => ipcRenderer.invoke('db:upload-employee-file', { employeeId }),
+  getEmployeeFiles: (employeeId: number) => ipcRenderer.invoke('db:get-employee-files', employeeId),
+  deleteEmployeeFile: (id: number) => ipcRenderer.invoke('db:delete-employee-file', id),
+  openEmployeeFile: (id: number) => ipcRenderer.invoke('db:open-employee-file', id),
+
   resetDatabase: () => ipcRenderer.invoke('db:reset-database'),
   backupDatabase: () => ipcRenderer.invoke('db:backup'),
   restoreDatabase: () => ipcRenderer.invoke('db:restore'),

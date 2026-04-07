@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import type { Employee, PayHistory, AuditLogEntry, EmployeeNote } from '../types/employee';
+import type { Employee, PayHistory, AuditLogEntry, EmployeeNote, EmployeeFile } from '../types/employee';
 import EmployeeForm from '../components/EmployeeForm';
+import { Paperclip, FileText, Trash2, Eye, Upload } from 'lucide-react';
 
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +12,9 @@ export default function EmployeeDetail() {
   const [payHistory, setPayHistory] = useState<PayHistory[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [notes, setNotes] = useState<EmployeeNote[]>([]);
+  const [files, setFiles] = useState<EmployeeFile[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [expandedOcrId, setExpandedOcrId] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
@@ -27,11 +31,13 @@ export default function EmployeeDetail() {
       api.getPayHistory(eid),
       api.getAuditLog(eid),
       api.getEmployeeNotes(eid),
-    ]).then(([emp, history, audit, n]) => {
+      api.getEmployeeFiles(eid),
+    ]).then(([emp, history, audit, n, f]) => {
       setEmployee(emp || null);
       setPayHistory(history);
       setAuditLog(audit);
       setNotes(n);
+      setFiles(f);
       if (emp) {
         api.getEmployeePhoto(eid).then(setPhotoDataUrl).catch(() => {});
       }
@@ -349,6 +355,105 @@ export default function EmployeeDetail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Files & Documents */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Paperclip className="w-5 h-5" />
+              Files &amp; Documents
+            </h3>
+            {!isArchived && (
+              <button
+                onClick={async () => {
+                  if (!employee) return;
+                  setUploadingFile(true);
+                  try {
+                    const result = await api.uploadEmployeeFile(employee.id);
+                    if (result) {
+                      const f = await api.getEmployeeFiles(employee.id);
+                      setFiles(f);
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setUploadingFile(false);
+                  }
+                }}
+                disabled={uploadingFile}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                {uploadingFile ? 'Uploading...' : 'Upload File'}
+              </button>
+            )}
+          </div>
+
+          {files.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500">No files attached yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {files.map(file => (
+                <div key={file.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{file.file_name}</p>
+                        <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          {file.file_type && <span className="uppercase">{file.file_type}</span>}
+                          {file.file_size != null && <span>{(file.file_size / 1024).toFixed(1)} KB</span>}
+                          <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {file.ocr_text && (
+                        <button
+                          onClick={() => setExpandedOcrId(expandedOcrId === file.id ? null : file.id)}
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
+                          title="View OCR Text"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => api.openEmployeeFile(file.id)}
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
+                        title="Open File"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                      {!isArchived && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Delete "${file.file_name}"?`)) return;
+                            await api.deleteEmployeeFile(file.id);
+                            const f = await api.getEmployeeFiles(employee!.id);
+                            setFiles(f);
+                          }}
+                          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
+                          title="Delete File"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {file.ocr_text && expandedOcrId === file.id && (
+                    <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">OCR Extracted Text</p>
+                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">{file.ocr_text}</pre>
+                    </div>
+                  )}
+                  {file.notes && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">{file.notes}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

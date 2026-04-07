@@ -43,18 +43,9 @@ export default function Settings() {
   const [showRestoreList, setShowRestoreList] = useState(false);
   const [restoreFiles, setRestoreFiles] = useState<{ name: string; id: string; lastModified: string }[]>([]);
 
-  // Shift config state
-  const [dayShiftStart, setDayShiftStart] = useState('07:00');
-  const [nightShiftStart, setNightShiftStart] = useState('19:00');
-  const [shiftMessage, setShiftMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   useEffect(() => {
     api.onedriveGetStatus().then(setOdStatus).catch(() => {});
     api.localBackupGetStatus().then(setLbStatus).catch(() => {});
-    api.getShiftConfig().then((config: { dayShiftStart: string; nightShiftStart: string }) => {
-      setDayShiftStart(config.dayShiftStart);
-      setNightShiftStart(config.nightShiftStart);
-    }).catch(() => {});
   }, []);
 
   const handleEnableLocalBackup = async () => {
@@ -215,6 +206,18 @@ export default function Settings() {
     <div>
       <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Settings</h2>
 
+      {lbStatus && !lbStatus.enabled && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-center gap-3 mb-6">
+          <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Backups Not Configured</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Set up local auto-backup below to protect your data.</p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         {/* Appearance */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
@@ -237,51 +240,6 @@ export default function Settings() {
                   theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
-            </button>
-          </div>
-        </div>
-
-        {/* Data Management */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Data Management</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Backup and restore your database.</p>
-
-          <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Backup Database</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Export the entire database to a file for safekeeping.</p>
-            </div>
-            <button
-              onClick={async () => {
-                const result = await api.backupDatabase();
-                if (result.success) alert(`Backup saved to ${result.path}`);
-                else if (result.error !== 'Cancelled') alert('Backup failed: ' + result.error);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex-shrink-0"
-            >
-              Backup
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Restore from Backup</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Replace current data with a previously saved backup file.</p>
-            </div>
-            <button
-              onClick={async () => {
-                if (!confirm('This will replace ALL current data with the backup. Continue?')) return;
-                const result = await api.restoreDatabase();
-                if (result.success) {
-                  alert('Database restored successfully.');
-                  window.location.reload();
-                } else if (result.error !== 'Cancelled') {
-                  alert('Restore failed: ' + result.error);
-                }
-              }}
-              className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors flex-shrink-0"
-            >
-              Restore
             </button>
           </div>
         </div>
@@ -680,53 +638,6 @@ export default function Settings() {
             </div>
           </div>
         )}
-
-        {/* Shift Configuration */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Shift Configuration</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Set the start times for day and night shifts. These are used for tardiness tracking.</p>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Day Shift Start</label>
-                <input
-                  type="time"
-                  value={dayShiftStart}
-                  onChange={e => setDayShiftStart(e.target.value)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Night Shift Start</label>
-                <input
-                  type="time"
-                  value={nightShiftStart}
-                  onChange={e => setNightShiftStart(e.target.value)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                />
-              </div>
-            </div>
-            {shiftMessage && (
-              <p className={`text-sm ${shiftMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {shiftMessage.text}
-              </p>
-            )}
-            <button
-              onClick={async () => {
-                try {
-                  await api.saveShiftConfig({ dayShiftStart, nightShiftStart });
-                  setShiftMessage({ type: 'success', text: 'Shift configuration saved.' });
-                } catch {
-                  setShiftMessage({ type: 'error', text: 'Failed to save shift configuration.' });
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Save Shift Settings
-            </button>
-          </div>
-        </div>
 
         {/* About & Updates */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">

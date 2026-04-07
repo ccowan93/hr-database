@@ -20,8 +20,8 @@ interface WidgetDef {
 }
 
 const ALL_WIDGETS: WidgetDef[] = [
-  { id: 'alerts', label: 'Birthday & Anniversary Alerts', category: 'Alerts' },
   { id: 'metrics', label: 'Key Metrics', category: 'Overview' },
+  { id: 'alerts', label: 'Birthday & Anniversary Alerts', category: 'Alerts' },
   { id: 'payroll', label: 'Payroll Summary', category: 'Compensation' },
   { id: 'headcount-dept', label: 'Headcount by Department', category: 'Workforce' },
   { id: 'gender', label: 'Gender Distribution', category: 'Demographics' },

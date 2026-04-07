@@ -14,7 +14,7 @@ export default function OrgChart() {
   const [departments, setDepartments] = useState<DeptNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<'tree' | 'grid'>('tree');
+  const [view, setView] = useState<'tree' | 'grid'>('grid');
 
   useEffect(() => {
     api.getAllEmployees({ status: 'active' }).then(employees => {

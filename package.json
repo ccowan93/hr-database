@@ -66,8 +66,10 @@
     "@tailwindcss/vite": "^4.2.2",
     "better-sqlite3": "^12.8.0",
     "exceljs": "^4.4.0",
+    "lucide-react": "^1.7.0",
     "prop-types": "^15.8.1",
     "react-simple-maps": "^3.0.0",
+    "tesseract.js": "^7.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
