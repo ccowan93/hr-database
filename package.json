@@ -47,7 +47,9 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.business"
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.business",
+      "notarize": true
     },
     "linux": {
       "target": [
