@@ -404,6 +404,10 @@ export function getEmployee(id: number) {
 }
 
 export function createEmployee(data: Record<string, any>) {
+  // Filter out virtual/JOIN fields that don't exist on the employees table
+  const virtualFields = ['shift_name', 'scheduled_in', 'scheduled_out', 'scheduled_lunch_start', 'scheduled_lunch_end'];
+  data = Object.fromEntries(Object.entries(data).filter(([k]) => !virtualFields.includes(k)));
+
   const cols = Object.keys(data);
   const placeholders = cols.map(() => '?').join(', ');
   const stmt = db.prepare(
@@ -414,6 +418,14 @@ export function createEmployee(data: Record<string, any>) {
 }
 
 export function updateEmployee(id: number, data: Record<string, any>, changeSource: string = 'manual') {
+  // Filter out virtual/JOIN fields that don't exist on the employees table
+  const virtualFields = ['shift_name', 'scheduled_in', 'scheduled_out', 'scheduled_lunch_start', 'scheduled_lunch_end'];
+  const filtered: Record<string, any> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (!virtualFields.includes(k)) filtered[k] = v;
+  }
+  data = filtered;
+
   // Fetch old record to diff
   const old = db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as Record<string, any> | undefined;
 
