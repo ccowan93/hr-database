@@ -14,6 +14,8 @@ import AttendanceCalendar from './views/AttendanceCalendar';
 import TimeOffManager from './views/TimeOffManager';
 import AttendanceReports from './views/AttendanceReports';
 import FmlaManager from './views/FmlaManager';
+import DisciplinaryList from './views/DisciplinaryList';
+import BenefitsAdmin from './views/BenefitsAdmin';
 import UpdateBanner from './components/UpdateBanner';
 
 export default function App() {
@@ -38,6 +40,8 @@ export default function App() {
           <Route path="/employees" element={<EmployeeList />} />
           <Route path="/employees/:id" element={<EmployeeDetail />} />
           <Route path="/employees/new" element={<AddEmployee />} />
+          <Route path="/disciplinary" element={<DisciplinaryList />} />
+          <Route path="/benefits" element={<BenefitsAdmin />} />
           <Route path="/audit-log" element={<AuditLog />} />
           <Route path="/org-chart" element={<OrgChart />} />
           <Route path="/reports" element={<ReportBuilder />} />

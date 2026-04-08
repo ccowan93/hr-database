@@ -141,9 +141,41 @@ const electronAPI = {
   getFmlaCase: (id: number) => ipcRenderer.invoke('db:get-fmla-case', id),
   getFmlaCases: (filters?: any) => ipcRenderer.invoke('db:get-fmla-cases', filters),
   addFmlaEpisode: (data: any) => ipcRenderer.invoke('db:add-fmla-episode', data),
+  addFmlaEpisodeBulk: (data: any) => ipcRenderer.invoke('db:add-fmla-episode-bulk', data),
   deleteFmlaEpisode: (id: number) => ipcRenderer.invoke('db:delete-fmla-episode', id),
   getFmlaEpisodes: (caseId: number) => ipcRenderer.invoke('db:get-fmla-episodes', caseId),
   getFmlaAlerts: () => ipcRenderer.invoke('db:get-fmla-alerts'),
+
+  // Disciplinary Actions
+  getDisciplinaryActions: (employeeId: number) => ipcRenderer.invoke('db:get-disciplinary-actions', employeeId),
+  getAllDisciplinaryActions: (filters?: any) => ipcRenderer.invoke('db:get-all-disciplinary-actions', filters),
+  getDisciplinaryAction: (id: number) => ipcRenderer.invoke('db:get-disciplinary-action', id),
+  createDisciplinaryAction: (data: any) => ipcRenderer.invoke('db:create-disciplinary-action', data),
+  updateDisciplinaryAction: (id: number, data: any) => ipcRenderer.invoke('db:update-disciplinary-action', id, data),
+  deleteDisciplinaryAction: (id: number) => ipcRenderer.invoke('db:delete-disciplinary-action', id),
+  getDisciplinaryStats: () => ipcRenderer.invoke('db:get-disciplinary-stats'),
+
+  // Benefit Plans
+  getBenefitPlans: (activeOnly?: boolean) => ipcRenderer.invoke('db:get-benefit-plans', activeOnly),
+  createBenefitPlan: (data: any) => ipcRenderer.invoke('db:create-benefit-plan', data),
+  updateBenefitPlan: (id: number, data: any) => ipcRenderer.invoke('db:update-benefit-plan', id, data),
+  deleteBenefitPlan: (id: number) => ipcRenderer.invoke('db:delete-benefit-plan', id),
+
+  // Benefit Enrollments
+  getEnrollments: (employeeId: number) => ipcRenderer.invoke('db:get-enrollments', employeeId),
+  getAllEnrollments: (filters?: any) => ipcRenderer.invoke('db:get-all-enrollments', filters),
+  createEnrollment: (data: any) => ipcRenderer.invoke('db:create-enrollment', data),
+  updateEnrollment: (id: number, data: any) => ipcRenderer.invoke('db:update-enrollment', id, data),
+  deleteEnrollment: (id: number) => ipcRenderer.invoke('db:delete-enrollment', id),
+
+  // Dependents
+  getDependents: (employeeId: number) => ipcRenderer.invoke('db:get-dependents', employeeId),
+  createDependent: (data: any) => ipcRenderer.invoke('db:create-dependent', data),
+  updateDependent: (id: number, data: any) => ipcRenderer.invoke('db:update-dependent', id, data),
+  deleteDependent: (id: number) => ipcRenderer.invoke('db:delete-dependent', id),
+
+  // Benefits Stats
+  getBenefitsStats: () => ipcRenderer.invoke('db:get-benefits-stats'),
 
   // Shift Configuration (legacy)
   getShiftConfig: () => ipcRenderer.invoke('app:get-shift-config'),

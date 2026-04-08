@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShieldAlert, Heart } from 'lucide-react';
 import { api } from '../api';
 
 const COLLAPSED_KEY = 'hr-sidebar-collapsed';
@@ -45,7 +45,7 @@ export default function Sidebar() {
     try { return localStorage.getItem(COLLAPSED_KEY) === 'true'; } catch { return false; }
   });
   const isTimeTrackingActive = location.pathname.startsWith('/time-tracking');
-  const isEmployeesActive = location.pathname.startsWith('/employees') || location.pathname === '/org-chart' || location.pathname === '/reports';
+  const isEmployeesActive = location.pathname.startsWith('/employees') || location.pathname === '/org-chart' || location.pathname === '/reports' || location.pathname === '/disciplinary' || location.pathname === '/benefits';
   const [timeTrackingOpen, setTimeTrackingOpen] = useState(isTimeTrackingActive);
   const [employeesOpen, setEmployeesOpen] = useState(isEmployeesActive);
 
@@ -188,6 +188,14 @@ export default function Sidebar() {
                 <NavLink to="/reports" className={({ isActive }) => navClass(isActive, true)}>
                   <FileText className="w-4 h-4" />
                   Reports
+                </NavLink>
+                <NavLink to="/disciplinary" className={({ isActive }) => navClass(isActive, true)}>
+                  <ShieldAlert className="w-4 h-4" />
+                  Disciplinary
+                </NavLink>
+                <NavLink to="/benefits" className={({ isActive }) => navClass(isActive, true)}>
+                  <Heart className="w-4 h-4" />
+                  Benefits
                 </NavLink>
               </ExpandablePanel>
             </>

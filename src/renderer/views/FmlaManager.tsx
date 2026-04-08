@@ -762,10 +762,15 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
   const [saving, setSaving] = useState(false);
 
   // Episode form
+  const [epMode, setEpMode] = useState<'single' | 'range'>('single');
   const [epDate, setEpDate] = useState('');
+  const [epStartDate, setEpStartDate] = useState('');
+  const [epEndDate, setEpEndDate] = useState('');
   const [epHours, setEpHours] = useState(8);
+  const [epSkipWeekends, setEpSkipWeekends] = useState(true);
   const [epNotes, setEpNotes] = useState('');
   const [addingEpisode, setAddingEpisode] = useState(false);
+  const [bulkResult, setBulkResult] = useState<number | null>(null);
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -811,22 +816,38 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
 
   const handleAddEpisode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!epDate || epHours <= 0) return;
+    if (epMode === 'single' && (!epDate || epHours <= 0)) return;
+    if (epMode === 'range' && (!epStartDate || !epEndDate || epHours <= 0)) return;
     setAddingEpisode(true);
+    setBulkResult(null);
     try {
-      await api.addFmlaEpisode({
-        fmla_case_id: fmlaCase.id,
-        date: epDate,
-        hours_used: epHours,
-        notes: epNotes || undefined,
-      });
-      setShowAddEpisode(false);
+      if (epMode === 'range') {
+        const count = await api.addFmlaEpisodeBulk({
+          fmla_case_id: fmlaCase.id,
+          start_date: epStartDate,
+          end_date: epEndDate,
+          hours_per_day: epHours,
+          skip_weekends: epSkipWeekends,
+          notes: epNotes || undefined,
+        });
+        setBulkResult(count);
+      } else {
+        await api.addFmlaEpisode({
+          fmla_case_id: fmlaCase.id,
+          date: epDate,
+          hours_used: epHours,
+          notes: epNotes || undefined,
+        });
+      }
       setEpDate('');
+      setEpStartDate('');
+      setEpEndDate('');
       setEpHours(8);
       setEpNotes('');
       await loadEpisodes();
       await refreshCase();
       onUpdated();
+      if (epMode === 'single') setShowAddEpisode(false);
     } catch (err) {
       console.error('Failed to add episode:', err);
     }
@@ -1036,32 +1057,87 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
 
             {showAddEpisode && (
               <form onSubmit={handleAddEpisode} className="mb-4 p-4 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date *</label>
-                    <input type="date" value={epDate} onChange={e => setEpDate(e.target.value)} required
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hours *</label>
-                    <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
-                    <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
+                {/* Mode toggle */}
+                <div className="flex gap-1 bg-gray-200 dark:bg-gray-700 rounded-md p-0.5 w-fit">
+                  <button type="button" onClick={() => setEpMode('single')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${epMode === 'single' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
+                    Single Day
+                  </button>
+                  <button type="button" onClick={() => setEpMode('range')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${epMode === 'range' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
+                    Date Range
+                  </button>
                 </div>
-                <div className="flex gap-2">
+
+                {epMode === 'single' ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date *</label>
+                      <input type="date" value={epDate} onChange={e => setEpDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hours *</label>
+                      <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
+                      <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date *</label>
+                        <input type="date" value={epStartDate} onChange={e => setEpStartDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Date *</label>
+                        <input type="date" value={epEndDate} onChange={e => setEpEndDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hours/Day *</label>
+                        <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
+                        <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input type="checkbox" checked={epSkipWeekends} onChange={e => setEpSkipWeekends(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      Skip weekends (Sat/Sun)
+                    </label>
+                    {epStartDate && epEndDate && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        This will create an episode for each {epSkipWeekends ? 'weekday' : 'day'} from {epStartDate} to {epEndDate} at {epHours}h/day.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
                   <button type="submit" disabled={addingEpisode}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium disabled:opacity-50">
-                    {addingEpisode ? 'Adding...' : 'Add Episode'}
+                    {addingEpisode ? 'Adding...' : epMode === 'range' ? 'Add Date Range' : 'Add Episode'}
                   </button>
-                  <button type="button" onClick={() => setShowAddEpisode(false)}
+                  <button type="button" onClick={() => { setShowAddEpisode(false); setBulkResult(null); }}
                     className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm">
                     Cancel
                   </button>
+                  {bulkResult !== null && (
+                    <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                      Added {bulkResult} episode{bulkResult !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
               </form>
             )}

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import type { Employee, PayHistory, AuditLogEntry, EmployeeNote, EmployeeFile } from '../types/employee';
 import EmployeeForm from '../components/EmployeeForm';
-import { Paperclip, FileText, Trash2, Eye, Upload } from 'lucide-react';
+import { Paperclip, FileText, Trash2, Eye, Upload, ShieldAlert, Heart, Plus, ChevronDown, ChevronRight, Edit3 } from 'lucide-react';
 
 export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +19,24 @@ export default function EmployeeDetail() {
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [editing, setEditing] = useState(false);
+
+  // Disciplinary
+  const [disciplinaryActions, setDisciplinaryActions] = useState<any[]>([]);
+  const [discOpen, setDiscOpen] = useState(false);
+  const [showDiscForm, setShowDiscForm] = useState(false);
+  const [discForm, setDiscForm] = useState({ type: 'verbal_warning', date: '', description: '', outcome: '', issued_by: '', follow_up_date: '', status: 'open' });
+  const [editingDiscId, setEditingDiscId] = useState<number | null>(null);
+  const [expandedDiscId, setExpandedDiscId] = useState<number | null>(null);
+
+  // Benefits
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [dependents, setDependents] = useState<any[]>([]);
+  const [benefitsOpen, setBenefitsOpen] = useState(false);
+  const [benefitPlans, setBenefitPlans] = useState<any[]>([]);
+  const [showEnrollForm, setShowEnrollForm] = useState(false);
+  const [enrollForm, setEnrollForm] = useState({ plan_id: 0, enrollment_date: '', coverage_level: 'employee', employee_contribution: 0, employer_contribution: 0 });
+  const [showDepForm, setShowDepForm] = useState(false);
+  const [depForm, setDepForm] = useState({ name: '', relationship: 'spouse', date_of_birth: '' });
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
@@ -40,6 +58,10 @@ export default function EmployeeDetail() {
       setFiles(f);
       if (emp) {
         api.getEmployeePhoto(eid).then(setPhotoDataUrl).catch(() => {});
+        api.getDisciplinaryActions(eid).then(setDisciplinaryActions).catch(() => {});
+        api.getEnrollments(eid).then(setEnrollments).catch(() => {});
+        api.getDependents(eid).then(setDependents).catch(() => {});
+        api.getBenefitPlans(true).then(setBenefitPlans).catch(() => {});
       }
     }).catch(console.error)
       .finally(() => setLoading(false));
@@ -459,6 +481,385 @@ export default function EmployeeDetail() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Disciplinary Actions */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <button onClick={() => setDiscOpen(!discOpen)} className="w-full flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-500" />
+              Disciplinary Actions
+              {disciplinaryActions.filter(a => a.status === 'open').length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  {disciplinaryActions.filter(a => a.status === 'open').length} open
+                </span>
+              )}
+            </h3>
+            {discOpen ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+          </button>
+
+          {discOpen && (
+            <div className="mt-4">
+              {!isArchived && (
+                <button onClick={() => { setShowDiscForm(!showDiscForm); setEditingDiscId(null); setDiscForm({ type: 'verbal_warning', date: '', description: '', outcome: '', issued_by: '', follow_up_date: '', status: 'open' }); }}
+                  className="mb-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add Action
+                </button>
+              )}
+
+              {showDiscForm && (
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Type *</label>
+                      <select value={discForm.type} onChange={e => setDiscForm({ ...discForm, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                        <option value="verbal_warning">Verbal Warning</option>
+                        <option value="written_warning">Written Warning</option>
+                        <option value="suspension">Suspension</option>
+                        <option value="termination">Termination</option>
+                        <option value="pip">PIP</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Date *</label>
+                      <input type="date" value={discForm.date} onChange={e => setDiscForm({ ...discForm, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                      <select value={discForm.status} onChange={e => setDiscForm({ ...discForm, status: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                        <option value="open">Open</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="escalated">Escalated</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Issued By</label>
+                      <input type="text" value={discForm.issued_by} onChange={e => setDiscForm({ ...discForm, issued_by: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Follow-up Date</label>
+                      <input type="date" value={discForm.follow_up_date} onChange={e => setDiscForm({ ...discForm, follow_up_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                    <textarea value={discForm.description} onChange={e => setDiscForm({ ...discForm, description: e.target.value })} rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Outcome</label>
+                    <textarea value={discForm.outcome} onChange={e => setDiscForm({ ...discForm, outcome: e.target.value })} rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={async () => {
+                      if (!employee || !discForm.date) return;
+                      if (editingDiscId) {
+                        await api.updateDisciplinaryAction(editingDiscId, discForm);
+                      } else {
+                        await api.createDisciplinaryAction({ ...discForm, employee_id: employee.id });
+                      }
+                      setShowDiscForm(false);
+                      setEditingDiscId(null);
+                      const d = await api.getDisciplinaryActions(employee.id);
+                      setDisciplinaryActions(d);
+                    }} disabled={!discForm.date}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium disabled:opacity-50">
+                      {editingDiscId ? 'Save Changes' : 'Add Action'}
+                    </button>
+                    <button onClick={() => { setShowDiscForm(false); setEditingDiscId(null); }}
+                      className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {disciplinaryActions.length === 0 ? (
+                <p className="text-sm text-gray-400 dark:text-gray-500">No disciplinary actions recorded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {disciplinaryActions.map((action: any) => {
+                    const typeLabels: Record<string, string> = { verbal_warning: 'Verbal Warning', written_warning: 'Written Warning', suspension: 'Suspension', termination: 'Termination', pip: 'PIP', other: 'Other' };
+                    const statusStyles: Record<string, string> = { open: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', resolved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', escalated: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
+                    const isExpanded = expandedDiscId === action.id;
+                    return (
+                      <div key={action.id} className="border border-gray-100 dark:border-gray-700 rounded-lg">
+                        <button onClick={() => setExpandedDiscId(isExpanded ? null : action.id)}
+                          className="w-full flex items-center justify-between p-3 text-left">
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[action.status] || ''}`}>{action.status}</span>
+                            <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{typeLabels[action.type] || action.type}</span>
+                            <span className="text-xs text-gray-500">{action.date}</span>
+                            {action.issued_by && <span className="text-xs text-gray-400">by {action.issued_by}</span>}
+                          </div>
+                          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-3 space-y-2 text-sm">
+                            {action.description && <div><span className="text-xs font-medium text-gray-500">Description:</span><p className="text-gray-700 dark:text-gray-300">{action.description}</p></div>}
+                            {action.outcome && <div><span className="text-xs font-medium text-gray-500">Outcome:</span><p className="text-gray-700 dark:text-gray-300">{action.outcome}</p></div>}
+                            {action.follow_up_date && <p className="text-xs text-gray-500">Follow-up: {action.follow_up_date}</p>}
+                            {!isArchived && (
+                              <div className="flex gap-2 pt-1">
+                                <button onClick={() => {
+                                  setEditingDiscId(action.id);
+                                  setDiscForm({ type: action.type, date: action.date, description: action.description || '', outcome: action.outcome || '', issued_by: action.issued_by || '', follow_up_date: action.follow_up_date || '', status: action.status });
+                                  setShowDiscForm(true);
+                                }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                                  <Edit3 className="w-3 h-3" /> Edit
+                                </button>
+                                <button onClick={async () => {
+                                  if (!confirm('Delete this disciplinary action?')) return;
+                                  await api.deleteDisciplinaryAction(action.id);
+                                  const d = await api.getDisciplinaryActions(employee!.id);
+                                  setDisciplinaryActions(d);
+                                }} className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1">
+                                  <Trash2 className="w-3 h-3" /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Benefits & Dependents */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <button onClick={() => setBenefitsOpen(!benefitsOpen)} className="w-full flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Heart className="w-5 h-5 text-pink-500" />
+              Benefits &amp; Dependents
+              {enrollments.filter(e => e.status === 'active').length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                  {enrollments.filter(e => e.status === 'active').length} active
+                </span>
+              )}
+            </h3>
+            {benefitsOpen ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+          </button>
+
+          {benefitsOpen && (
+            <div className="mt-4 space-y-6">
+              {/* Active Enrollments */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Enrollments</h4>
+                  {!isArchived && (
+                    <button onClick={() => setShowEnrollForm(!showEnrollForm)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                      <Plus className="w-3 h-3" /> Enroll
+                    </button>
+                  )}
+                </div>
+
+                {showEnrollForm && (
+                  <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Plan *</label>
+                        <select value={enrollForm.plan_id} onChange={e => setEnrollForm({ ...enrollForm, plan_id: parseInt(e.target.value) })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                          <option value={0}>Select plan...</option>
+                          {benefitPlans.map((p: any) => <option key={p.id} value={p.id}>{p.plan_name} ({p.plan_type})</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Enrollment Date *</label>
+                        <input type="date" value={enrollForm.enrollment_date} onChange={e => setEnrollForm({ ...enrollForm, enrollment_date: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Coverage Level</label>
+                        <select value={enrollForm.coverage_level} onChange={e => setEnrollForm({ ...enrollForm, coverage_level: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                          <option value="employee">Employee Only</option>
+                          <option value="employee_spouse">Employee + Spouse</option>
+                          <option value="employee_children">Employee + Children</option>
+                          <option value="family">Family</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Employee Contribution ($)</label>
+                        <input type="number" step="0.01" value={enrollForm.employee_contribution} onChange={e => setEnrollForm({ ...enrollForm, employee_contribution: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Employer Contribution ($)</label>
+                        <input type="number" step="0.01" value={enrollForm.employer_contribution} onChange={e => setEnrollForm({ ...enrollForm, employer_contribution: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={async () => {
+                        if (!employee || !enrollForm.plan_id || !enrollForm.enrollment_date) return;
+                        await api.createEnrollment({ ...enrollForm, employee_id: employee.id });
+                        setShowEnrollForm(false);
+                        setEnrollForm({ plan_id: 0, enrollment_date: '', coverage_level: 'employee', employee_contribution: 0, employer_contribution: 0 });
+                        const e = await api.getEnrollments(employee.id);
+                        setEnrollments(e);
+                      }} disabled={!enrollForm.plan_id || !enrollForm.enrollment_date}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50">Add</button>
+                      <button onClick={() => setShowEnrollForm(false)}
+                        className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {enrollments.length === 0 ? (
+                  <p className="text-sm text-gray-400 dark:text-gray-500">No benefit enrollments.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Plan</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Coverage</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">EE $</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">ER $</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Status</th>
+                        <th className="px-2 py-1.5 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrollments.map((en: any) => {
+                        const coverageLabels: Record<string, string> = { employee: 'Employee', employee_spouse: 'EE + Spouse', employee_children: 'EE + Children', family: 'Family' };
+                        const statusStyles: Record<string, string> = { active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', terminated: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400', pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' };
+                        return (
+                          <tr key={en.id} className="border-b border-gray-100 dark:border-gray-700">
+                            <td className="px-2 py-1.5 text-gray-800 dark:text-gray-200">{en.plan_name} <span className="text-xs text-gray-400">({en.plan_type})</span></td>
+                            <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300 text-xs">{coverageLabels[en.coverage_level] || en.coverage_level || '—'}</td>
+                            <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">${Number(en.employee_contribution).toFixed(2)}</td>
+                            <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">${Number(en.employer_contribution).toFixed(2)}</td>
+                            <td className="px-2 py-1.5"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[en.status] || ''}`}>{en.status}</span></td>
+                            <td className="px-2 py-1.5 text-right">
+                              {!isArchived && (
+                                <button onClick={async () => {
+                                  if (!confirm('Remove this enrollment?')) return;
+                                  await api.deleteEnrollment(en.id);
+                                  const e = await api.getEnrollments(employee!.id);
+                                  setEnrollments(e);
+                                }} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Dependents */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Dependents</h4>
+                  {!isArchived && (
+                    <button onClick={() => setShowDepForm(!showDepForm)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                      <Plus className="w-3 h-3" /> Add Dependent
+                    </button>
+                  )}
+                </div>
+
+                {showDepForm && (
+                  <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
+                        <input type="text" value={depForm.name} onChange={e => setDepForm({ ...depForm, name: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Relationship</label>
+                        <select value={depForm.relationship} onChange={e => setDepForm({ ...depForm, relationship: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                          <option value="spouse">Spouse</option>
+                          <option value="child">Child</option>
+                          <option value="domestic_partner">Domestic Partner</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+                        <input type="date" value={depForm.date_of_birth} onChange={e => setDepForm({ ...depForm, date_of_birth: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={async () => {
+                        if (!employee || !depForm.name.trim()) return;
+                        await api.createDependent({ ...depForm, employee_id: employee.id });
+                        setShowDepForm(false);
+                        setDepForm({ name: '', relationship: 'spouse', date_of_birth: '' });
+                        const d = await api.getDependents(employee.id);
+                        setDependents(d);
+                      }} disabled={!depForm.name.trim()}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50">Add</button>
+                      <button onClick={() => setShowDepForm(false)}
+                        className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {dependents.length === 0 ? (
+                  <p className="text-sm text-gray-400 dark:text-gray-500">No dependents recorded.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Name</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Relationship</th>
+                        <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">DOB</th>
+                        <th className="px-2 py-1.5 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dependents.map((dep: any) => {
+                        const relLabels: Record<string, string> = { spouse: 'Spouse', child: 'Child', domestic_partner: 'Domestic Partner', other: 'Other' };
+                        return (
+                          <tr key={dep.id} className="border-b border-gray-100 dark:border-gray-700">
+                            <td className="px-2 py-1.5 text-gray-800 dark:text-gray-200">{dep.name}</td>
+                            <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300 text-xs">{relLabels[dep.relationship] || dep.relationship || '—'}</td>
+                            <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">{dep.date_of_birth || '—'}</td>
+                            <td className="px-2 py-1.5 text-right">
+                              {!isArchived && (
+                                <button onClick={async () => {
+                                  if (!confirm(`Remove dependent "${dep.name}"?`)) return;
+                                  await api.deleteDependent(dep.id);
+                                  const d = await api.getDependents(employee!.id);
+                                  setDependents(d);
+                                }} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </div>

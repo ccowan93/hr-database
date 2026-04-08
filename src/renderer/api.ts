@@ -107,9 +107,41 @@ declare global {
       getFmlaCase: (id: number) => Promise<any>;
       getFmlaCases: (filters?: { employeeId?: number; status?: string; active?: boolean }) => Promise<any[]>;
       addFmlaEpisode: (data: { fmla_case_id: number; date: string; hours_used: number; time_off_request_id?: number; notes?: string }) => Promise<boolean>;
+      addFmlaEpisodeBulk: (data: { fmla_case_id: number; start_date: string; end_date: string; hours_per_day: number; skip_weekends: boolean; notes?: string }) => Promise<number>;
       deleteFmlaEpisode: (id: number) => Promise<boolean>;
       getFmlaEpisodes: (caseId: number) => Promise<any[]>;
       getFmlaAlerts: () => Promise<{ type: string; severity: string; message: string; case_id: number; employee_name: string }[]>;
+
+      // Disciplinary Actions
+      getDisciplinaryActions: (employeeId: number) => Promise<any[]>;
+      getAllDisciplinaryActions: (filters?: { type?: string; status?: string; department?: string; startDate?: string; endDate?: string }) => Promise<any[]>;
+      getDisciplinaryAction: (id: number) => Promise<any>;
+      createDisciplinaryAction: (data: { employee_id: number; type: string; date: string; description?: string; outcome?: string; issued_by?: string; follow_up_date?: string; status?: string }) => Promise<number>;
+      updateDisciplinaryAction: (id: number, data: any) => Promise<boolean>;
+      deleteDisciplinaryAction: (id: number) => Promise<boolean>;
+      getDisciplinaryStats: () => Promise<{ open: number; escalated: number }>;
+
+      // Benefit Plans
+      getBenefitPlans: (activeOnly?: boolean) => Promise<any[]>;
+      createBenefitPlan: (data: { plan_name: string; plan_type: string; provider?: string; plan_number?: string; description?: string }) => Promise<number>;
+      updateBenefitPlan: (id: number, data: any) => Promise<boolean>;
+      deleteBenefitPlan: (id: number) => Promise<boolean>;
+
+      // Benefit Enrollments
+      getEnrollments: (employeeId: number) => Promise<any[]>;
+      getAllEnrollments: (filters?: { planType?: string; status?: string }) => Promise<any[]>;
+      createEnrollment: (data: { employee_id: number; plan_id: number; enrollment_date: string; termination_date?: string; coverage_level?: string; employee_contribution?: number; employer_contribution?: number; status?: string }) => Promise<number>;
+      updateEnrollment: (id: number, data: any) => Promise<boolean>;
+      deleteEnrollment: (id: number) => Promise<boolean>;
+
+      // Dependents
+      getDependents: (employeeId: number) => Promise<any[]>;
+      createDependent: (data: { employee_id: number; name: string; relationship?: string; date_of_birth?: string; covered_plan_ids?: string }) => Promise<number>;
+      updateDependent: (id: number, data: any) => Promise<boolean>;
+      deleteDependent: (id: number) => Promise<boolean>;
+
+      // Benefits Stats
+      getBenefitsStats: () => Promise<{ byType: any[]; totalEnrolled: number }>;
 
       // Shift Configuration (legacy)
       getShiftConfig: () => Promise<{ dayShiftStart: string; nightShiftStart: string }>;

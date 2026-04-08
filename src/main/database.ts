@@ -256,6 +256,31 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_fmla_status ON fmla_cases(status);
   `);
 
+  // Migration: expand fmla_cases status and cert_status CHECK constraints
+  try {
+    const hasOldCheck = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='fmla_cases'`).get() as any;
+    if (hasOldCheck?.sql && hasOldCheck.sql.includes("'pending','approved','denied','closed','exhausted'")) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS fmla_cases_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, reason TEXT NOT NULL,
+          family_member TEXT, leave_type TEXT NOT NULL CHECK(leave_type IN ('continuous','intermittent','reduced_schedule')),
+          status TEXT DEFAULT 'pending_designation' CHECK(status IN ('pending_designation','active','exhausted','closed','pending','approved','denied')),
+          start_date TEXT, expected_end_date TEXT, actual_end_date TEXT, entitlement_hours REAL DEFAULT 480, used_hours REAL DEFAULT 0,
+          leave_year_start TEXT NOT NULL,
+          cert_status TEXT DEFAULT 'not_requested' CHECK(cert_status IN ('not_requested','requested','received','incomplete','approved','denied','insufficient','expired')),
+          cert_due_date TEXT, cert_received_date TEXT, recert_due_date TEXT, fitness_for_duty INTEGER DEFAULT 0,
+          notes TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (employee_id) REFERENCES employees(id)
+        );
+        INSERT INTO fmla_cases_new SELECT * FROM fmla_cases;
+        DROP TABLE fmla_cases;
+        ALTER TABLE fmla_cases_new RENAME TO fmla_cases;
+        CREATE INDEX IF NOT EXISTS idx_fmla_employee ON fmla_cases(employee_id);
+        CREATE INDEX IF NOT EXISTS idx_fmla_status ON fmla_cases(status);
+      `);
+    }
+  } catch (_) {}
+
   // ── FMLA Episodes (individual absence events) ──
   db.exec(`
     CREATE TABLE IF NOT EXISTS fmla_episodes (
@@ -311,6 +336,71 @@ export function initDatabase(): Database.Database {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+  `);
+
+  // ── Disciplinary Actions Table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS disciplinary_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      type TEXT NOT NULL CHECK(type IN ('verbal_warning','written_warning','suspension','termination','pip','other')),
+      date TEXT NOT NULL,
+      description TEXT,
+      outcome TEXT,
+      issued_by TEXT,
+      follow_up_date TEXT,
+      status TEXT DEFAULT 'open' CHECK(status IN ('open','resolved','escalated')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_disciplinary_employee ON disciplinary_actions(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_disciplinary_status ON disciplinary_actions(status);
+  `);
+
+  // ── Benefit Plans Table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS benefit_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_name TEXT NOT NULL,
+      plan_type TEXT NOT NULL CHECK(plan_type IN ('health','dental','vision','401k','fsa','hsa','life','disability','other')),
+      provider TEXT,
+      plan_number TEXT,
+      description TEXT,
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  // ── Benefit Enrollments Table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS benefit_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      plan_id INTEGER NOT NULL REFERENCES benefit_plans(id),
+      enrollment_date TEXT NOT NULL,
+      termination_date TEXT,
+      coverage_level TEXT CHECK(coverage_level IN ('employee','employee_spouse','employee_children','family')),
+      employee_contribution REAL DEFAULT 0,
+      employer_contribution REAL DEFAULT 0,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','terminated','pending')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_enrollments_employee ON benefit_enrollments(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_enrollments_plan ON benefit_enrollments(plan_id);
+  `);
+
+  // ── Dependents Table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dependents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      relationship TEXT CHECK(relationship IN ('spouse','child','domestic_partner','other')),
+      date_of_birth TEXT,
+      covered_plan_ids TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_dependents_employee ON dependents(employee_id);
   `);
 
   // Auto-refresh computed fields on startup
@@ -1983,9 +2073,35 @@ export function addFmlaEpisode(data: { fmla_case_id: number; date: string; hours
 
   // Auto-exhaust if at entitlement
   const fmlaCase = db.prepare('SELECT entitlement_hours, status FROM fmla_cases WHERE id = ?').get(data.fmla_case_id) as any;
-  if (fmlaCase && total.total >= fmlaCase.entitlement_hours && fmlaCase.status === 'approved') {
+  if (fmlaCase && total.total >= fmlaCase.entitlement_hours && (fmlaCase.status === 'approved' || fmlaCase.status === 'active')) {
     db.prepare("UPDATE fmla_cases SET status = 'exhausted', updated_at = datetime('now') WHERE id = ?").run(data.fmla_case_id);
   }
+}
+
+export function addFmlaEpisodeBulk(data: { fmla_case_id: number; start_date: string; end_date: string; hours_per_day: number; skip_weekends: boolean; notes?: string }) {
+  const start = new Date(data.start_date + 'T00:00:00');
+  const end = new Date(data.end_date + 'T00:00:00');
+  const insert = db.prepare(`INSERT INTO fmla_episodes (fmla_case_id, date, hours_used, notes) VALUES (?, ?, ?, ?)`);
+  let count = 0;
+  const txn = db.transaction(() => {
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (data.skip_weekends && (dow === 0 || dow === 6)) continue;
+      const dateStr = d.toISOString().slice(0, 10);
+      insert.run(data.fmla_case_id, dateStr, data.hours_per_day, data.notes || null);
+      count++;
+    }
+    // Recalculate used_hours
+    const total = db.prepare('SELECT COALESCE(SUM(hours_used), 0) as total FROM fmla_episodes WHERE fmla_case_id = ?').get(data.fmla_case_id) as any;
+    db.prepare("UPDATE fmla_cases SET used_hours = ?, updated_at = datetime('now') WHERE id = ?").run(total.total, data.fmla_case_id);
+    // Auto-exhaust
+    const fmlaCase = db.prepare('SELECT entitlement_hours, status FROM fmla_cases WHERE id = ?').get(data.fmla_case_id) as any;
+    if (fmlaCase && total.total >= fmlaCase.entitlement_hours && (fmlaCase.status === 'approved' || fmlaCase.status === 'active')) {
+      db.prepare("UPDATE fmla_cases SET status = 'exhausted', updated_at = datetime('now') WHERE id = ?").run(data.fmla_case_id);
+    }
+  });
+  txn();
+  return count;
 }
 
 export function deleteFmlaEpisode(id: number) {
@@ -2079,4 +2195,231 @@ export function getFmlaAlerts() {
   }
 
   return alerts;
+}
+
+// ── Disciplinary Actions ──
+
+export function getDisciplinaryActions(employeeId: number) {
+  return db.prepare(
+    'SELECT * FROM disciplinary_actions WHERE employee_id = ? ORDER BY date DESC, created_at DESC'
+  ).all(employeeId);
+}
+
+export function getAllDisciplinaryActions(filters?: { type?: string; status?: string; department?: string; startDate?: string; endDate?: string }) {
+  let query = `SELECT d.*, e.employee_name, e.current_department, e.current_position
+    FROM disciplinary_actions d
+    JOIN employees e ON d.employee_id = e.id
+    WHERE 1=1`;
+  const params: any[] = [];
+  if (filters?.type) { query += ' AND d.type = ?'; params.push(filters.type); }
+  if (filters?.status) { query += ' AND d.status = ?'; params.push(filters.status); }
+  if (filters?.department) {
+    query += ` AND (',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'`;
+    params.push(filters.department);
+  }
+  if (filters?.startDate) { query += ' AND d.date >= ?'; params.push(filters.startDate); }
+  if (filters?.endDate) { query += ' AND d.date <= ?'; params.push(filters.endDate); }
+  query += ' ORDER BY d.date DESC, d.created_at DESC';
+  return db.prepare(query).all(...params);
+}
+
+export function getDisciplinaryAction(id: number) {
+  return db.prepare(
+    `SELECT d.*, e.employee_name, e.current_department
+     FROM disciplinary_actions d JOIN employees e ON d.employee_id = e.id
+     WHERE d.id = ?`
+  ).get(id);
+}
+
+export function createDisciplinaryAction(data: {
+  employee_id: number;
+  type: string;
+  date: string;
+  description?: string | null;
+  outcome?: string | null;
+  issued_by?: string | null;
+  follow_up_date?: string | null;
+  status?: string;
+}) {
+  const result = db.prepare(`
+    INSERT INTO disciplinary_actions (employee_id, type, date, description, outcome, issued_by, follow_up_date, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.employee_id, data.type, data.date,
+    data.description || null, data.outcome || null, data.issued_by || null,
+    data.follow_up_date || null, data.status || 'open'
+  );
+  return result.lastInsertRowid;
+}
+
+export function updateDisciplinaryAction(id: number, data: Record<string, any>) {
+  const allowed = ['type', 'date', 'description', 'outcome', 'issued_by', 'follow_up_date', 'status'];
+  const filtered: Record<string, any> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (allowed.includes(k)) filtered[k] = v;
+  }
+  if (Object.keys(filtered).length === 0) return;
+  const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE disciplinary_actions SET ${sets}, updated_at = datetime('now') WHERE id = ?`).run(...Object.values(filtered), id);
+}
+
+export function deleteDisciplinaryAction(id: number) {
+  db.prepare('DELETE FROM disciplinary_actions WHERE id = ?').run(id);
+}
+
+export function getDisciplinaryStats() {
+  const open = db.prepare(`SELECT COUNT(*) as count FROM disciplinary_actions WHERE status = 'open'`).get() as any;
+  const escalated = db.prepare(`SELECT COUNT(*) as count FROM disciplinary_actions WHERE status = 'escalated'`).get() as any;
+  return { open: open.count, escalated: escalated.count };
+}
+
+// ── Benefit Plans ──
+
+export function getBenefitPlans(activeOnly?: boolean) {
+  if (activeOnly) {
+    return db.prepare('SELECT * FROM benefit_plans WHERE active = 1 ORDER BY plan_type, plan_name').all();
+  }
+  return db.prepare('SELECT * FROM benefit_plans ORDER BY plan_type, plan_name').all();
+}
+
+export function createBenefitPlan(data: {
+  plan_name: string;
+  plan_type: string;
+  provider?: string | null;
+  plan_number?: string | null;
+  description?: string | null;
+}) {
+  const result = db.prepare(`
+    INSERT INTO benefit_plans (plan_name, plan_type, provider, plan_number, description)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.plan_name, data.plan_type, data.provider || null, data.plan_number || null, data.description || null);
+  return result.lastInsertRowid;
+}
+
+export function updateBenefitPlan(id: number, data: Record<string, any>) {
+  const allowed = ['plan_name', 'plan_type', 'provider', 'plan_number', 'description', 'active'];
+  const filtered: Record<string, any> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (allowed.includes(k)) filtered[k] = v;
+  }
+  if (Object.keys(filtered).length === 0) return;
+  const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE benefit_plans SET ${sets} WHERE id = ?`).run(...Object.values(filtered), id);
+}
+
+export function deleteBenefitPlan(id: number) {
+  db.prepare('DELETE FROM benefit_enrollments WHERE plan_id = ?').run(id);
+  db.prepare('DELETE FROM benefit_plans WHERE id = ?').run(id);
+}
+
+// ── Benefit Enrollments ──
+
+export function getEnrollments(employeeId: number) {
+  return db.prepare(`
+    SELECT be.*, bp.plan_name, bp.plan_type, bp.provider
+    FROM benefit_enrollments be
+    JOIN benefit_plans bp ON be.plan_id = bp.id
+    WHERE be.employee_id = ?
+    ORDER BY be.status ASC, be.enrollment_date DESC
+  `).all(employeeId);
+}
+
+export function getAllEnrollments(filters?: { planType?: string; status?: string }) {
+  let query = `SELECT be.*, bp.plan_name, bp.plan_type, bp.provider, e.employee_name, e.current_department
+    FROM benefit_enrollments be
+    JOIN benefit_plans bp ON be.plan_id = bp.id
+    JOIN employees e ON be.employee_id = e.id
+    WHERE 1=1`;
+  const params: any[] = [];
+  if (filters?.planType) { query += ' AND bp.plan_type = ?'; params.push(filters.planType); }
+  if (filters?.status) { query += ' AND be.status = ?'; params.push(filters.status); }
+  query += ' ORDER BY e.employee_name, bp.plan_type';
+  return db.prepare(query).all(...params);
+}
+
+export function createEnrollment(data: {
+  employee_id: number;
+  plan_id: number;
+  enrollment_date: string;
+  termination_date?: string | null;
+  coverage_level?: string | null;
+  employee_contribution?: number;
+  employer_contribution?: number;
+  status?: string;
+}) {
+  const result = db.prepare(`
+    INSERT INTO benefit_enrollments (employee_id, plan_id, enrollment_date, termination_date, coverage_level, employee_contribution, employer_contribution, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.employee_id, data.plan_id, data.enrollment_date,
+    data.termination_date || null, data.coverage_level || null,
+    data.employee_contribution ?? 0, data.employer_contribution ?? 0,
+    data.status || 'active'
+  );
+  return result.lastInsertRowid;
+}
+
+export function updateEnrollment(id: number, data: Record<string, any>) {
+  const allowed = ['plan_id', 'enrollment_date', 'termination_date', 'coverage_level', 'employee_contribution', 'employer_contribution', 'status'];
+  const filtered: Record<string, any> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (allowed.includes(k)) filtered[k] = v;
+  }
+  if (Object.keys(filtered).length === 0) return;
+  const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE benefit_enrollments SET ${sets} WHERE id = ?`).run(...Object.values(filtered), id);
+}
+
+export function deleteEnrollment(id: number) {
+  db.prepare('DELETE FROM benefit_enrollments WHERE id = ?').run(id);
+}
+
+// ── Dependents ──
+
+export function getDependents(employeeId: number) {
+  return db.prepare('SELECT * FROM dependents WHERE employee_id = ? ORDER BY name').all(employeeId);
+}
+
+export function createDependent(data: {
+  employee_id: number;
+  name: string;
+  relationship?: string | null;
+  date_of_birth?: string | null;
+  covered_plan_ids?: string | null;
+}) {
+  const result = db.prepare(`
+    INSERT INTO dependents (employee_id, name, relationship, date_of_birth, covered_plan_ids)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.employee_id, data.name, data.relationship || null, data.date_of_birth || null, data.covered_plan_ids || null);
+  return result.lastInsertRowid;
+}
+
+export function updateDependent(id: number, data: Record<string, any>) {
+  const allowed = ['name', 'relationship', 'date_of_birth', 'covered_plan_ids'];
+  const filtered: Record<string, any> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (allowed.includes(k)) filtered[k] = v;
+  }
+  if (Object.keys(filtered).length === 0) return;
+  const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE dependents SET ${sets} WHERE id = ?`).run(...Object.values(filtered), id);
+}
+
+export function deleteDependent(id: number) {
+  db.prepare('DELETE FROM dependents WHERE id = ?').run(id);
+}
+
+// ── Benefits Stats ──
+
+export function getBenefitsStats() {
+  const byType = db.prepare(`
+    SELECT bp.plan_type, COUNT(be.id) as enrolled, SUM(be.employee_contribution) as total_employee_cost, SUM(be.employer_contribution) as total_employer_cost
+    FROM benefit_plans bp
+    LEFT JOIN benefit_enrollments be ON bp.id = be.plan_id AND be.status = 'active'
+    WHERE bp.active = 1
+    GROUP BY bp.plan_type
+    ORDER BY bp.plan_type
+  `).all();
+  const totalEnrolled = db.prepare(`SELECT COUNT(*) as count FROM benefit_enrollments WHERE status = 'active'`).get() as any;
+  return { byType, totalEnrolled: totalEnrolled.count };
 }

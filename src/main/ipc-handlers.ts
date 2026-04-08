@@ -25,7 +25,12 @@ import {
   getLeftEarlyReport, getLunchDurationReport,
   getCalendarAttendanceFlags, getSalaryAttendanceFlags, setSalaryAttendanceFlag, removeSalaryAttendanceFlag,
   getFmlaConfig, updateFmlaConfig, checkFmlaEligibility, createFmlaCase, updateFmlaCase,
-  getFmlaCase, getFmlaCases, addFmlaEpisode, deleteFmlaEpisode, getFmlaEpisodes, getFmlaAlerts
+  getFmlaCase, getFmlaCases, addFmlaEpisode, addFmlaEpisodeBulk, deleteFmlaEpisode, getFmlaEpisodes, getFmlaAlerts,
+  getDisciplinaryActions, getAllDisciplinaryActions, getDisciplinaryAction, createDisciplinaryAction,
+  updateDisciplinaryAction, deleteDisciplinaryAction, getDisciplinaryStats,
+  getBenefitPlans, createBenefitPlan, updateBenefitPlan, deleteBenefitPlan,
+  getEnrollments, getAllEnrollments, createEnrollment, updateEnrollment, deleteEnrollment,
+  getDependents, createDependent, updateDependent, deleteDependent, getBenefitsStats
 } from './database';
 import { extractText } from './ocr';
 import { importFromExcel } from './import-xlsx';
@@ -373,9 +378,41 @@ export function registerIpcHandlers() {
   ipcMain.handle('db:get-fmla-case', (_event, id: number) => getFmlaCase(id));
   ipcMain.handle('db:get-fmla-cases', (_event, filters?: any) => getFmlaCases(filters || {}));
   ipcMain.handle('db:add-fmla-episode', (_event, data: any) => { addFmlaEpisode(data); return true; });
+  ipcMain.handle('db:add-fmla-episode-bulk', (_event, data: any) => addFmlaEpisodeBulk(data));
   ipcMain.handle('db:delete-fmla-episode', (_event, id: number) => { deleteFmlaEpisode(id); return true; });
   ipcMain.handle('db:get-fmla-episodes', (_event, caseId: number) => getFmlaEpisodes(caseId));
   ipcMain.handle('db:get-fmla-alerts', () => getFmlaAlerts());
+
+  // ── Disciplinary Actions ──
+  ipcMain.handle('db:get-disciplinary-actions', (_event, employeeId: number) => getDisciplinaryActions(employeeId));
+  ipcMain.handle('db:get-all-disciplinary-actions', (_event, filters?: any) => getAllDisciplinaryActions(filters || {}));
+  ipcMain.handle('db:get-disciplinary-action', (_event, id: number) => getDisciplinaryAction(id));
+  ipcMain.handle('db:create-disciplinary-action', (_event, data: any) => createDisciplinaryAction(data));
+  ipcMain.handle('db:update-disciplinary-action', (_event, id: number, data: any) => { updateDisciplinaryAction(id, data); return true; });
+  ipcMain.handle('db:delete-disciplinary-action', (_event, id: number) => { deleteDisciplinaryAction(id); return true; });
+  ipcMain.handle('db:get-disciplinary-stats', () => getDisciplinaryStats());
+
+  // ── Benefit Plans ──
+  ipcMain.handle('db:get-benefit-plans', (_event, activeOnly?: boolean) => getBenefitPlans(activeOnly));
+  ipcMain.handle('db:create-benefit-plan', (_event, data: any) => createBenefitPlan(data));
+  ipcMain.handle('db:update-benefit-plan', (_event, id: number, data: any) => { updateBenefitPlan(id, data); return true; });
+  ipcMain.handle('db:delete-benefit-plan', (_event, id: number) => { deleteBenefitPlan(id); return true; });
+
+  // ── Benefit Enrollments ──
+  ipcMain.handle('db:get-enrollments', (_event, employeeId: number) => getEnrollments(employeeId));
+  ipcMain.handle('db:get-all-enrollments', (_event, filters?: any) => getAllEnrollments(filters || {}));
+  ipcMain.handle('db:create-enrollment', (_event, data: any) => createEnrollment(data));
+  ipcMain.handle('db:update-enrollment', (_event, id: number, data: any) => { updateEnrollment(id, data); return true; });
+  ipcMain.handle('db:delete-enrollment', (_event, id: number) => { deleteEnrollment(id); return true; });
+
+  // ── Dependents ──
+  ipcMain.handle('db:get-dependents', (_event, employeeId: number) => getDependents(employeeId));
+  ipcMain.handle('db:create-dependent', (_event, data: any) => createDependent(data));
+  ipcMain.handle('db:update-dependent', (_event, id: number, data: any) => { updateDependent(id, data); return true; });
+  ipcMain.handle('db:delete-dependent', (_event, id: number) => { deleteDependent(id); return true; });
+
+  // ── Benefits Stats ──
+  ipcMain.handle('db:get-benefits-stats', () => getBenefitsStats());
 
   // ── OneDrive Cloud Backup ──
   ipcMain.handle('onedrive:get-status', () => getOneDriveStatus());
