@@ -269,9 +269,15 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Payroll Summary by Department</h3>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                Total Payroll: <span className="text-lg font-bold text-blue-600 dark:text-blue-400">${stats.totalPayroll.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </p>
+              <div className="flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-300">
+                <p>
+                  Total Payroll: <span className="text-lg font-bold text-blue-600 dark:text-blue-400">${stats.totalPayroll.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">/hr</span>
+                </p>
+                <p>
+                  Est. Weekly: <span className="text-lg font-bold text-green-600 dark:text-green-400">${(stats.totalPayroll * 40).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </p>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

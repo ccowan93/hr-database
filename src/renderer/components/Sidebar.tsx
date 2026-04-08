@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Clock, CalendarDays, CalendarOff, BarChart3, Users, UserPlus, Network, ClipboardList, FileText, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import { api } from '../api';
 
 const COLLAPSED_KEY = 'hr-sidebar-collapsed';
@@ -223,6 +223,10 @@ export default function Sidebar() {
                 <NavLink to="/time-tracking/time-off" className={({ isActive }) => navClass(isActive, true)}>
                   <CalendarOff className="w-4 h-4" />
                   Time Off
+                </NavLink>
+                <NavLink to="/time-tracking/fmla" className={({ isActive }) => navClass(isActive, true)}>
+                  <ShieldCheck className="w-4 h-4" />
+                  FMLA
                 </NavLink>
                 <NavLink to="/time-tracking/reports" className={({ isActive }) => navClass(isActive, true)}>
                   <BarChart3 className="w-4 h-4" />

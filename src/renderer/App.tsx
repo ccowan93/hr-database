@@ -13,6 +13,7 @@ import ReportBuilder from './views/ReportBuilder';
 import AttendanceCalendar from './views/AttendanceCalendar';
 import TimeOffManager from './views/TimeOffManager';
 import AttendanceReports from './views/AttendanceReports';
+import FmlaManager from './views/FmlaManager';
 import UpdateBanner from './components/UpdateBanner';
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/time-tracking/calendar" element={<AttendanceCalendar />} />
           <Route path="/time-tracking/time-off" element={<TimeOffManager />} />
           <Route path="/time-tracking/reports" element={<AttendanceReports />} />
+          <Route path="/time-tracking/fmla" element={<FmlaManager />} />
           <Route path="/employees" element={<EmployeeList />} />
           <Route path="/employees/:id" element={<EmployeeDetail />} />
           <Route path="/employees/new" element={<AddEmployee />} />

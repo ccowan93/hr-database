@@ -98,6 +98,19 @@ declare global {
       setSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string, notes?: string) => Promise<boolean>;
       removeSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string) => Promise<boolean>;
 
+      // FMLA
+      getFmlaConfig: () => Promise<any>;
+      updateFmlaConfig: (data: any) => Promise<any>;
+      checkFmlaEligibility: (employeeId: number) => Promise<{ eligible: boolean; employeeName: string; monthsEmployed: number; hoursWorked: number; reasons: string[] }>;
+      createFmlaCase: (data: any) => Promise<number>;
+      updateFmlaCase: (id: number, data: any) => Promise<any>;
+      getFmlaCase: (id: number) => Promise<any>;
+      getFmlaCases: (filters?: { employeeId?: number; status?: string; active?: boolean }) => Promise<any[]>;
+      addFmlaEpisode: (data: { fmla_case_id: number; date: string; hours_used: number; time_off_request_id?: number; notes?: string }) => Promise<boolean>;
+      deleteFmlaEpisode: (id: number) => Promise<boolean>;
+      getFmlaEpisodes: (caseId: number) => Promise<any[]>;
+      getFmlaAlerts: () => Promise<{ type: string; severity: string; message: string; case_id: number; employee_name: string }[]>;
+
       // Shift Configuration (legacy)
       getShiftConfig: () => Promise<{ dayShiftStart: string; nightShiftStart: string }>;
       saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => Promise<boolean>;

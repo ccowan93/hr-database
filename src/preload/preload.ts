@@ -132,6 +132,19 @@ const electronAPI = {
   localBackupRestore: (backupPath: string) => ipcRenderer.invoke('local-backup:restore', backupPath),
   localBackupUpdateSettings: (settings: { intervalHours?: number; keepCount?: number }) => ipcRenderer.invoke('local-backup:update-settings', settings),
 
+  // FMLA
+  getFmlaConfig: () => ipcRenderer.invoke('db:get-fmla-config'),
+  updateFmlaConfig: (data: any) => ipcRenderer.invoke('db:update-fmla-config', data),
+  checkFmlaEligibility: (employeeId: number) => ipcRenderer.invoke('db:check-fmla-eligibility', employeeId),
+  createFmlaCase: (data: any) => ipcRenderer.invoke('db:create-fmla-case', data),
+  updateFmlaCase: (id: number, data: any) => ipcRenderer.invoke('db:update-fmla-case', id, data),
+  getFmlaCase: (id: number) => ipcRenderer.invoke('db:get-fmla-case', id),
+  getFmlaCases: (filters?: any) => ipcRenderer.invoke('db:get-fmla-cases', filters),
+  addFmlaEpisode: (data: any) => ipcRenderer.invoke('db:add-fmla-episode', data),
+  deleteFmlaEpisode: (id: number) => ipcRenderer.invoke('db:delete-fmla-episode', id),
+  getFmlaEpisodes: (caseId: number) => ipcRenderer.invoke('db:get-fmla-episodes', caseId),
+  getFmlaAlerts: () => ipcRenderer.invoke('db:get-fmla-alerts'),
+
   // Shift Configuration (legacy)
   getShiftConfig: () => ipcRenderer.invoke('app:get-shift-config'),
   saveShiftConfig: (config: { dayShiftStart: string; nightShiftStart: string }) => ipcRenderer.invoke('app:save-shift-config', config),

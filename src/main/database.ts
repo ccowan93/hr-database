@@ -227,6 +227,65 @@ export function initDatabase(): Database.Database {
     );
   `);
 
+  // ── FMLA Cases ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fmla_cases (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id         INTEGER NOT NULL,
+      reason              TEXT NOT NULL,
+      family_member       TEXT,
+      leave_type          TEXT NOT NULL CHECK(leave_type IN ('continuous','intermittent','reduced_schedule')),
+      status              TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','denied','closed','exhausted')),
+      start_date          TEXT,
+      expected_end_date   TEXT,
+      actual_end_date     TEXT,
+      entitlement_hours   REAL DEFAULT 480,
+      used_hours          REAL DEFAULT 0,
+      leave_year_start    TEXT NOT NULL,
+      cert_status         TEXT DEFAULT 'not_requested' CHECK(cert_status IN ('not_requested','requested','received','insufficient','expired')),
+      cert_due_date       TEXT,
+      cert_received_date  TEXT,
+      recert_due_date     TEXT,
+      fitness_for_duty    INTEGER DEFAULT 0,
+      notes               TEXT,
+      created_at          TEXT DEFAULT (datetime('now')),
+      updated_at          TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fmla_employee ON fmla_cases(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_fmla_status ON fmla_cases(status);
+  `);
+
+  // ── FMLA Episodes (individual absence events) ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fmla_episodes (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      fmla_case_id        INTEGER NOT NULL,
+      date                TEXT NOT NULL,
+      hours_used          REAL NOT NULL,
+      time_off_request_id INTEGER,
+      notes               TEXT,
+      created_at          TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (fmla_case_id) REFERENCES fmla_cases(id),
+      FOREIGN KEY (time_off_request_id) REFERENCES time_off_requests(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fmla_ep_case ON fmla_episodes(fmla_case_id);
+    CREATE INDEX IF NOT EXISTS idx_fmla_ep_date ON fmla_episodes(date);
+  `);
+
+  // ── FMLA Configuration ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fmla_config (
+      id                  INTEGER PRIMARY KEY CHECK(id = 1),
+      leave_year_method   TEXT DEFAULT 'rolling_backward' CHECK(leave_year_method IN ('rolling_backward','rolling_forward','calendar_year','fixed_year')),
+      fixed_year_start    TEXT DEFAULT '01-01',
+      eligibility_months  INTEGER DEFAULT 12,
+      eligibility_hours   REAL DEFAULT 1250,
+      updated_at          TEXT DEFAULT (datetime('now'))
+    );
+  `);
+  db.prepare('INSERT OR IGNORE INTO fmla_config (id) VALUES (1)').run();
+
   // ── Employee Files (attachments with OCR) ──
   db.exec(`
     CREATE TABLE IF NOT EXISTS employee_files (
@@ -481,6 +540,28 @@ export function updateEmployee(id: number, data: Record<string, any>, changeSour
           change_source: changeSource,
         });
       }
+    }
+  }
+
+  // Auto-log pay history when current_pay_rate changes
+  if (old && data.current_pay_rate !== undefined) {
+    const oldRate = old.current_pay_rate;
+    const newRate = data.current_pay_rate;
+    if (oldRate != newRate && (oldRate != null || newRate != null)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const empName = data.employee_name || old.employee_name || '';
+      const dept = data.current_department || old.current_department || null;
+      const pos = data.current_position || old.current_position || null;
+      const changeType = oldRate == null ? 'initial' : (newRate != null && oldRate != null && newRate > oldRate) ? 'raise' : (newRate != null && oldRate != null && newRate < oldRate) ? 'decrease' : 'change';
+      addPayHistory({
+        employee_id: id,
+        pay_rate: newRate != null ? Number(newRate) : null,
+        raise_date: data.date_last_raise || today,
+        department: dept,
+        position: pos,
+        change_type: changeType,
+        notes: oldRate != null ? `Previous rate: $${Number(oldRate).toFixed(2)}` : null,
+      });
     }
   }
 
@@ -1737,4 +1818,265 @@ export function getTimeOffUsageReport(year: number, filters?: { employeeIds?: nu
     WHERE ${conditions.join(' AND ')}
     ORDER BY e.employee_name, tob.request_type
   `).all(...params);
+}
+
+// ── FMLA ──
+
+export function getFmlaConfig() {
+  return db.prepare('SELECT * FROM fmla_config WHERE id = 1').get();
+}
+
+export function updateFmlaConfig(data: Record<string, any>) {
+  const allowed = ['leave_year_method', 'fixed_year_start', 'eligibility_months', 'eligibility_hours'];
+  const sets: string[] = [];
+  const values: any[] = [];
+  for (const key of allowed) {
+    if (data[key] !== undefined) { sets.push(`${key} = ?`); values.push(data[key]); }
+  }
+  if (sets.length === 0) return;
+  sets.push("updated_at = datetime('now')");
+  db.prepare(`UPDATE fmla_config SET ${sets.join(', ')} WHERE id = 1`).run(...values);
+}
+
+export function checkFmlaEligibility(employeeId: number) {
+  const config = db.prepare('SELECT * FROM fmla_config WHERE id = 1').get() as any;
+  const emp = db.prepare('SELECT doh, employee_name FROM employees WHERE id = ?').get(employeeId) as any;
+  if (!emp || !emp.doh) {
+    return { eligible: false, employeeName: emp?.employee_name || '', monthsEmployed: 0, hoursWorked: 0, reasons: ['No date of hire on file'] };
+  }
+
+  // Calculate months employed
+  const doh = new Date(emp.doh + 'T00:00:00');
+  const now = new Date();
+  const monthsEmployed = (now.getFullYear() - doh.getFullYear()) * 12 + (now.getMonth() - doh.getMonth());
+
+  // Calculate hours worked in trailing 12 months
+  const hoursRow = db.prepare(`
+    SELECT COALESCE(SUM(reg_hours + ot_hours), 0) as total_hours
+    FROM attendance_records
+    WHERE employee_id = ? AND date >= date('now', '-12 months') AND date <= date('now')
+  `).get(employeeId) as any;
+  const hoursWorked = Math.round((hoursRow?.total_hours || 0) * 10) / 10;
+
+  const reasons: string[] = [];
+  const reqMonths = config?.eligibility_months || 12;
+  const reqHours = config?.eligibility_hours || 1250;
+
+  if (monthsEmployed < reqMonths) {
+    reasons.push(`Employed ${monthsEmployed} months (need ${reqMonths})`);
+  }
+  if (hoursWorked < reqHours) {
+    reasons.push(`${hoursWorked} hours worked in past 12 months (need ${reqHours})`);
+  }
+
+  return {
+    eligible: reasons.length === 0,
+    employeeName: emp.employee_name,
+    monthsEmployed,
+    hoursWorked,
+    reasons,
+  };
+}
+
+export function createFmlaCase(data: {
+  employee_id: number;
+  reason: string;
+  family_member?: string;
+  leave_type: string;
+  start_date?: string;
+  expected_end_date?: string;
+  entitlement_hours?: number;
+  notes?: string;
+}) {
+  const config = db.prepare('SELECT * FROM fmla_config WHERE id = 1').get() as any;
+
+  // Calculate leave year start based on method
+  let leaveYearStart: string;
+  const method = config?.leave_year_method || 'rolling_backward';
+  const today = new Date().toISOString().split('T')[0];
+
+  if (method === 'calendar_year') {
+    leaveYearStart = `${new Date().getFullYear()}-01-01`;
+  } else if (method === 'fixed_year') {
+    const [mm, dd] = (config?.fixed_year_start || '01-01').split('-');
+    const yr = new Date().getFullYear();
+    const fixed = `${yr}-${mm}-${dd}`;
+    leaveYearStart = fixed <= today ? fixed : `${yr - 1}-${mm}-${dd}`;
+  } else if (method === 'rolling_forward') {
+    leaveYearStart = data.start_date || today;
+  } else {
+    // rolling_backward: 12 months back from today
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    leaveYearStart = d.toISOString().split('T')[0];
+  }
+
+  const result = db.prepare(`
+    INSERT INTO fmla_cases (employee_id, reason, family_member, leave_type, start_date, expected_end_date,
+      entitlement_hours, leave_year_start, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.employee_id, data.reason, data.family_member || null, data.leave_type,
+    data.start_date || null, data.expected_end_date || null,
+    data.entitlement_hours || (data.reason === 'military_caregiver' ? 1040 : 480),
+    leaveYearStart, data.notes || null
+  );
+  return result.lastInsertRowid;
+}
+
+export function updateFmlaCase(id: number, data: Record<string, any>) {
+  const allowed = ['reason', 'family_member', 'leave_type', 'status', 'start_date', 'expected_end_date',
+    'actual_end_date', 'entitlement_hours', 'cert_status', 'cert_due_date', 'cert_received_date',
+    'recert_due_date', 'fitness_for_duty', 'notes'];
+  const sets: string[] = [];
+  const values: any[] = [];
+  for (const key of allowed) {
+    if (data[key] !== undefined) { sets.push(`${key} = ?`); values.push(data[key]); }
+  }
+  if (sets.length === 0) return;
+  sets.push("updated_at = datetime('now')");
+  values.push(id);
+  db.prepare(`UPDATE fmla_cases SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function getFmlaCase(id: number) {
+  return db.prepare(`
+    SELECT fc.*, e.employee_name, e.current_department
+    FROM fmla_cases fc
+    JOIN employees e ON fc.employee_id = e.id
+    WHERE fc.id = ?
+  `).get(id);
+}
+
+export function getFmlaCases(filters: { employeeId?: number; status?: string; active?: boolean } = {}) {
+  const conditions = ['1=1'];
+  const params: any[] = [];
+  if (filters.employeeId) {
+    conditions.push('fc.employee_id = ?');
+    params.push(filters.employeeId);
+  }
+  if (filters.status) {
+    conditions.push('fc.status = ?');
+    params.push(filters.status);
+  }
+  if (filters.active) {
+    conditions.push("fc.status IN ('pending', 'approved')");
+  }
+  return db.prepare(`
+    SELECT fc.*, e.employee_name, e.current_department
+    FROM fmla_cases fc
+    JOIN employees e ON fc.employee_id = e.id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY fc.created_at DESC
+  `).all(...params);
+}
+
+export function addFmlaEpisode(data: { fmla_case_id: number; date: string; hours_used: number; time_off_request_id?: number; notes?: string }) {
+  db.prepare(`
+    INSERT INTO fmla_episodes (fmla_case_id, date, hours_used, time_off_request_id, notes)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.fmla_case_id, data.date, data.hours_used, data.time_off_request_id || null, data.notes || null);
+
+  // Recalculate used_hours on the case
+  const total = db.prepare('SELECT COALESCE(SUM(hours_used), 0) as total FROM fmla_episodes WHERE fmla_case_id = ?').get(data.fmla_case_id) as any;
+  db.prepare("UPDATE fmla_cases SET used_hours = ?, updated_at = datetime('now') WHERE id = ?").run(total.total, data.fmla_case_id);
+
+  // Auto-exhaust if at entitlement
+  const fmlaCase = db.prepare('SELECT entitlement_hours, status FROM fmla_cases WHERE id = ?').get(data.fmla_case_id) as any;
+  if (fmlaCase && total.total >= fmlaCase.entitlement_hours && fmlaCase.status === 'approved') {
+    db.prepare("UPDATE fmla_cases SET status = 'exhausted', updated_at = datetime('now') WHERE id = ?").run(data.fmla_case_id);
+  }
+}
+
+export function deleteFmlaEpisode(id: number) {
+  const ep = db.prepare('SELECT fmla_case_id FROM fmla_episodes WHERE id = ?').get(id) as any;
+  db.prepare('DELETE FROM fmla_episodes WHERE id = ?').run(id);
+  if (ep) {
+    const total = db.prepare('SELECT COALESCE(SUM(hours_used), 0) as total FROM fmla_episodes WHERE fmla_case_id = ?').get(ep.fmla_case_id) as any;
+    db.prepare("UPDATE fmla_cases SET used_hours = ?, updated_at = datetime('now') WHERE id = ?").run(total.total, ep.fmla_case_id);
+  }
+}
+
+export function getFmlaEpisodes(caseId: number) {
+  return db.prepare(`
+    SELECT fe.*, tor.request_type as linked_request_type, tor.start_date as linked_start, tor.end_date as linked_end
+    FROM fmla_episodes fe
+    LEFT JOIN time_off_requests tor ON fe.time_off_request_id = tor.id
+    WHERE fe.fmla_case_id = ?
+    ORDER BY fe.date DESC
+  `).all(caseId);
+}
+
+export function getFmlaAlerts() {
+  const alerts: { type: string; severity: 'warning' | 'danger' | 'info'; message: string; case_id: number; employee_name: string }[] = [];
+
+  // Approaching exhaustion (>80% used)
+  const approaching = db.prepare(`
+    SELECT fc.id, fc.used_hours, fc.entitlement_hours, e.employee_name
+    FROM fmla_cases fc JOIN employees e ON fc.employee_id = e.id
+    WHERE fc.status = 'approved' AND fc.used_hours >= fc.entitlement_hours * 0.8
+  `).all() as any[];
+  for (const c of approaching) {
+    const pct = Math.round((c.used_hours / c.entitlement_hours) * 100);
+    alerts.push({
+      type: 'exhaustion',
+      severity: pct >= 100 ? 'danger' : 'warning',
+      message: `${c.employee_name}: ${pct}% of FMLA entitlement used (${c.used_hours}/${c.entitlement_hours} hrs)`,
+      case_id: c.id,
+      employee_name: c.employee_name,
+    });
+  }
+
+  // Certification due within 15 days
+  const certDue = db.prepare(`
+    SELECT fc.id, fc.cert_due_date, e.employee_name
+    FROM fmla_cases fc JOIN employees e ON fc.employee_id = e.id
+    WHERE fc.status IN ('pending', 'approved') AND fc.cert_status = 'requested'
+      AND fc.cert_due_date IS NOT NULL AND fc.cert_due_date <= date('now', '+15 days')
+  `).all() as any[];
+  for (const c of certDue) {
+    const isOverdue = c.cert_due_date < new Date().toISOString().split('T')[0];
+    alerts.push({
+      type: 'certification',
+      severity: isOverdue ? 'danger' : 'warning',
+      message: `${c.employee_name}: Certification ${isOverdue ? 'overdue' : 'due'} ${c.cert_due_date}`,
+      case_id: c.id,
+      employee_name: c.employee_name,
+    });
+  }
+
+  // Recertification due within 15 days
+  const recertDue = db.prepare(`
+    SELECT fc.id, fc.recert_due_date, e.employee_name
+    FROM fmla_cases fc JOIN employees e ON fc.employee_id = e.id
+    WHERE fc.status = 'approved' AND fc.cert_status = 'received'
+      AND fc.recert_due_date IS NOT NULL AND fc.recert_due_date <= date('now', '+15 days')
+  `).all() as any[];
+  for (const c of recertDue) {
+    alerts.push({
+      type: 'recertification',
+      severity: 'warning',
+      message: `${c.employee_name}: Recertification due ${c.recert_due_date}`,
+      case_id: c.id,
+      employee_name: c.employee_name,
+    });
+  }
+
+  // Pending designation (cases still pending for >5 days)
+  const pendingLong = db.prepare(`
+    SELECT fc.id, fc.created_at, e.employee_name
+    FROM fmla_cases fc JOIN employees e ON fc.employee_id = e.id
+    WHERE fc.status = 'pending' AND fc.created_at <= datetime('now', '-5 days')
+  `).all() as any[];
+  for (const c of pendingLong) {
+    alerts.push({
+      type: 'designation',
+      severity: 'warning',
+      message: `${c.employee_name}: FMLA designation pending since ${c.created_at.split(' ')[0]}`,
+      case_id: c.id,
+      employee_name: c.employee_name,
+    });
+  }
+
+  return alerts;
 }

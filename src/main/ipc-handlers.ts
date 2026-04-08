@@ -23,7 +23,9 @@ import {
   getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport,
   getAllShifts, getShift, createShift, updateShift, deleteShift,
   getLeftEarlyReport, getLunchDurationReport,
-  getCalendarAttendanceFlags, getSalaryAttendanceFlags, setSalaryAttendanceFlag, removeSalaryAttendanceFlag
+  getCalendarAttendanceFlags, getSalaryAttendanceFlags, setSalaryAttendanceFlag, removeSalaryAttendanceFlag,
+  getFmlaConfig, updateFmlaConfig, checkFmlaEligibility, createFmlaCase, updateFmlaCase,
+  getFmlaCase, getFmlaCases, addFmlaEpisode, deleteFmlaEpisode, getFmlaEpisodes, getFmlaAlerts
 } from './database';
 import { extractText } from './ocr';
 import { importFromExcel } from './import-xlsx';
@@ -361,6 +363,19 @@ export function registerIpcHandlers() {
     return getShift(id);
   });
   ipcMain.handle('db:delete-shift', (_event, id: number) => deleteShift(id));
+
+  // ── FMLA ──
+  ipcMain.handle('db:get-fmla-config', () => getFmlaConfig());
+  ipcMain.handle('db:update-fmla-config', (_event, data: any) => { updateFmlaConfig(data); return getFmlaConfig(); });
+  ipcMain.handle('db:check-fmla-eligibility', (_event, employeeId: number) => checkFmlaEligibility(employeeId));
+  ipcMain.handle('db:create-fmla-case', (_event, data: any) => createFmlaCase(data));
+  ipcMain.handle('db:update-fmla-case', (_event, id: number, data: any) => { updateFmlaCase(id, data); return getFmlaCase(id); });
+  ipcMain.handle('db:get-fmla-case', (_event, id: number) => getFmlaCase(id));
+  ipcMain.handle('db:get-fmla-cases', (_event, filters?: any) => getFmlaCases(filters || {}));
+  ipcMain.handle('db:add-fmla-episode', (_event, data: any) => { addFmlaEpisode(data); return true; });
+  ipcMain.handle('db:delete-fmla-episode', (_event, id: number) => { deleteFmlaEpisode(id); return true; });
+  ipcMain.handle('db:get-fmla-episodes', (_event, caseId: number) => getFmlaEpisodes(caseId));
+  ipcMain.handle('db:get-fmla-alerts', () => getFmlaAlerts());
 
   // ── OneDrive Cloud Backup ──
   ipcMain.handle('onedrive:get-status', () => getOneDriveStatus());
