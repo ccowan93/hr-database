@@ -366,12 +366,13 @@ export function getAllEmployees(filters: EmployeeFilters = {}) {
   }
 
   // Multi-department filter takes priority over single department
+  // Uses LIKE to match comma-separated department values
   if (filters.departments && filters.departments.length > 0) {
-    const placeholders = filters.departments.map(() => '?').join(', ');
-    query += ` AND e.current_department IN (${placeholders})`;
+    const deptConditions = filters.departments.map(() => `(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'`).join(' OR ');
+    query += ` AND (${deptConditions})`;
     params.push(...filters.departments);
   } else if (filters.department) {
-    query += ' AND e.current_department = ?';
+    query += ` AND (',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'`;
     params.push(filters.department);
   }
 
@@ -872,7 +873,13 @@ export function getDepartments(): string[] {
   const rows = db.prepare(
     `SELECT DISTINCT current_department FROM employees WHERE ${ACTIVE_FILTER} AND current_department IS NOT NULL ORDER BY current_department`
   ).all() as any[];
-  return rows.map(r => r.current_department);
+  // Split comma-separated department values and deduplicate
+  const deptSet = new Set<string>();
+  for (const r of rows) {
+    const parts = r.current_department.split(/[,;]+/).map((s: string) => s.trim()).filter(Boolean);
+    for (const p of parts) deptSet.add(p);
+  }
+  return Array.from(deptSet).sort((a, b) => a.localeCompare(b));
 }
 
 export function getCountries(): string[] {
@@ -1327,7 +1334,8 @@ export function getAttendanceByDepartment(department: string, startDate: string,
     SELECT ar.*, e.current_department, e.current_position
     FROM attendance_records ar
     JOIN employees e ON ar.employee_id = e.id
-    WHERE e.current_department = ? AND ar.date >= ? AND ar.date <= ?
+    WHERE (',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'
+      AND ar.date >= ? AND ar.date <= ?
     ORDER BY ar.date ASC, e.employee_name ASC
   `).all(department, startDate, endDate);
 }
@@ -1345,7 +1353,7 @@ export function getAttendanceSummary(filters: { employeeId?: number; department?
   const params: any[] = [];
 
   if (filters.department) {
-    query += ' JOIN employees e ON ar.employee_id = e.id WHERE e.current_department = ?';
+    query += ` JOIN employees e ON ar.employee_id = e.id WHERE (',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'`;
     params.push(filters.department);
   } else if (filters.employeeId) {
     query += ' WHERE ar.employee_id = ?';
@@ -1545,7 +1553,7 @@ export function getOvertimeReport(startDate: string, endDate: string, groupBy: '
     params.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    conditions.push('e.current_department = ?');
+    conditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     params.push(filters.department);
   }
   const where = conditions.join(' AND ');
@@ -1578,7 +1586,7 @@ export function getAbsenteeismReport(startDate: string, endDate: string, filters
     params.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    empConditions.push('e.current_department = ?');
+    empConditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     params.push(filters.department);
   }
   return db.prepare(`
@@ -1603,7 +1611,7 @@ export function getTardinessReport(startDate: string, endDate: string, filters?:
     innerParams.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    outerConditions.push('e.current_department = ?');
+    outerConditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     outerParams.push(filters.department);
   }
   return db.prepare(`
@@ -1635,7 +1643,7 @@ export function getLeftEarlyReport(startDate: string, endDate: string, filters?:
     innerParams.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    outerConditions.push('e.current_department = ?');
+    outerConditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     outerParams.push(filters.department);
   }
   return db.prepare(`
@@ -1665,7 +1673,7 @@ export function getLunchDurationReport(startDate: string, endDate: string, filte
     params.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    conditions.push('e.current_department = ?');
+    conditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     params.push(filters.department);
   }
   return db.prepare(`
@@ -1717,7 +1725,7 @@ export function getTimeOffUsageReport(year: number, filters?: { employeeIds?: nu
     params.push(...filters.employeeIds);
   }
   if (filters?.department) {
-    conditions.push('e.current_department = ?');
+    conditions.push("(',' || REPLACE(e.current_department, ' ', '') || ',') LIKE '%,' || REPLACE(?, ' ', '') || ',%'");
     params.push(filters.department);
   }
   return db.prepare(`

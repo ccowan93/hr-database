@@ -20,11 +20,15 @@ export default function OrgChart() {
     api.getAllEmployees({ status: 'active' }).then(employees => {
       const deptMap = new Map<string, { supervisors: Employee[]; members: Employee[] }>();
       for (const emp of employees) {
-        const dept = emp.current_department || 'Unassigned';
-        if (!deptMap.has(dept)) deptMap.set(dept, { supervisors: [], members: [] });
-        const group = deptMap.get(dept)!;
-        if (emp.supervisory_role === 'Y') group.supervisors.push(emp);
-        else group.members.push(emp);
+        const depts = emp.current_department
+          ? emp.current_department.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+          : ['Unassigned'];
+        for (const dept of depts) {
+          if (!deptMap.has(dept)) deptMap.set(dept, { supervisors: [], members: [] });
+          const group = deptMap.get(dept)!;
+          if (emp.supervisory_role === 'Y') group.supervisors.push(emp);
+          else group.members.push(emp);
+        }
       }
       const sorted = Array.from(deptMap.entries())
         .map(([department, { supervisors, members }]) => ({ department, supervisors, members }))

@@ -25,7 +25,7 @@ const FIELD_GROUPS = [
   {
     title: 'Employment',
     fields: [
-      { key: 'current_department', label: 'Department', type: 'lookup', lookupKey: 'departments' },
+      { key: 'current_department', label: 'Department(s)', type: 'multi-lookup', lookupKey: 'departments' },
       { key: 'current_position', label: 'Position', type: 'text' },
       { key: 'supervisory_role', label: 'Supervisory Role', type: 'select', options: ['Y', 'N'] },
       { key: 'shift_id', label: 'Shift', type: 'shift-select' },
