@@ -321,7 +321,7 @@ export default function FmlaManager() {
                       <tr
                         key={c.id}
                         onClick={() => setSelectedCase(c)}
-                        className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition-colors"
+                        className="border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{c.employee_name || `Employee #${c.employee_id}`}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getReasonLabel(c.reason)}</td>
@@ -1056,7 +1056,7 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
             </div>
 
             {showAddEpisode && (
-              <form onSubmit={handleAddEpisode} className="mb-4 p-4 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
+              <form onSubmit={handleAddEpisode} className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
                 {/* Mode toggle */}
                 <div className="flex gap-1 bg-gray-200 dark:bg-gray-700 rounded-md p-0.5 w-fit">
                   <button type="button" onClick={() => setEpMode('single')}
