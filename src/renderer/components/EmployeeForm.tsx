@@ -322,7 +322,11 @@ function ShiftSelect({ value, shifts, onChange, onShiftsChanged }: ShiftSelectPr
         className={`${inputClass} cursor-pointer flex items-center justify-between`}
       >
         <span className={selected ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}>
-          {selected ? `${selected.shift_name} (${selected.scheduled_in} – ${selected.scheduled_out})` : 'Select shift...'}
+          {selected
+            ? selected.is_salary
+              ? `${selected.shift_name} (Salaried)`
+              : `${selected.shift_name} (${selected.scheduled_in} – ${selected.scheduled_out})`
+            : 'Select shift...'}
         </span>
         <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -361,7 +365,10 @@ function ShiftSelect({ value, shifts, onChange, onShiftsChanged }: ShiftSelectPr
                 }`}
               >
                 <span className="font-medium">{s.shift_name}</span>
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{s.scheduled_in} – {s.scheduled_out}</span>
+                {s.is_salary
+                  ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">Salaried</span>
+                  : <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{s.scheduled_in} – {s.scheduled_out}</span>
+                }
               </button>
             ))}
           </div>

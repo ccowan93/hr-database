@@ -22,7 +22,8 @@ import {
   getTimeOffBalances, upsertTimeOffBalance,
   getOvertimeReport, getAbsenteeismReport, getTardinessReport, getTimeOffUsageReport,
   getAllShifts, getShift, createShift, updateShift, deleteShift,
-  getLeftEarlyReport, getLunchDurationReport
+  getLeftEarlyReport, getLunchDurationReport,
+  getCalendarAttendanceFlags, getSalaryAttendanceFlags, setSalaryAttendanceFlag, removeSalaryAttendanceFlag
 } from './database';
 import { extractText } from './ocr';
 import { importFromExcel } from './import-xlsx';
@@ -328,22 +329,33 @@ export function registerIpcHandlers() {
     { upsertTimeOffBalance(employeeId, year, requestType, allocatedHours); return true; });
 
   // ── Attendance Reports ──
-  ipcMain.handle('db:get-overtime-report', (_event, startDate: string, endDate: string, groupBy: 'employee' | 'department') =>
-    getOvertimeReport(startDate, endDate, groupBy));
-  ipcMain.handle('db:get-absenteeism-report', (_event, startDate: string, endDate: string) =>
-    getAbsenteeismReport(startDate, endDate));
-  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string) =>
-    getTardinessReport(startDate, endDate));
-  ipcMain.handle('db:get-left-early-report', (_event, startDate: string, endDate: string) =>
-    getLeftEarlyReport(startDate, endDate));
-  ipcMain.handle('db:get-lunch-duration-report', (_event, startDate: string, endDate: string) =>
-    getLunchDurationReport(startDate, endDate));
-  ipcMain.handle('db:get-timeoff-usage-report', (_event, year: number) => getTimeOffUsageReport(year));
+  ipcMain.handle('db:get-overtime-report', (_event, startDate: string, endDate: string, groupBy: 'employee' | 'department', filters?: { employeeIds?: number[]; department?: string }) =>
+    getOvertimeReport(startDate, endDate, groupBy, filters));
+  ipcMain.handle('db:get-absenteeism-report', (_event, startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) =>
+    getAbsenteeismReport(startDate, endDate, filters));
+  ipcMain.handle('db:get-tardiness-report', (_event, startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) =>
+    getTardinessReport(startDate, endDate, filters));
+  ipcMain.handle('db:get-left-early-report', (_event, startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) =>
+    getLeftEarlyReport(startDate, endDate, filters));
+  ipcMain.handle('db:get-lunch-duration-report', (_event, startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) =>
+    getLunchDurationReport(startDate, endDate, filters));
+  ipcMain.handle('db:get-timeoff-usage-report', (_event, year: number, filters?: { employeeIds?: number[]; department?: string }) =>
+    getTimeOffUsageReport(year, filters));
+
+  // ── Calendar Attendance Flags ──
+  ipcMain.handle('db:get-calendar-attendance-flags', (_event, employeeId: number, startDate: string, endDate: string) =>
+    getCalendarAttendanceFlags(employeeId, startDate, endDate));
+  ipcMain.handle('db:get-salary-attendance-flags', (_event, employeeId: number, startDate: string, endDate: string) =>
+    getSalaryAttendanceFlags(employeeId, startDate, endDate));
+  ipcMain.handle('db:set-salary-attendance-flag', (_event, employeeId: number, date: string, flagType: string, notes?: string) =>
+    { setSalaryAttendanceFlag(employeeId, date, flagType, notes); return true; });
+  ipcMain.handle('db:remove-salary-attendance-flag', (_event, employeeId: number, date: string, flagType: string) =>
+    { removeSalaryAttendanceFlag(employeeId, date, flagType); return true; });
 
   // ── Shifts CRUD ──
   ipcMain.handle('db:get-all-shifts', () => getAllShifts());
   ipcMain.handle('db:get-shift', (_event, id: number) => getShift(id));
-  ipcMain.handle('db:create-shift', (_event, data: { shift_name: string; scheduled_in: string; scheduled_out: string; scheduled_lunch_start?: string | null; scheduled_lunch_end?: string | null }) => createShift(data));
+  ipcMain.handle('db:create-shift', (_event, data: any) => createShift(data));
   ipcMain.handle('db:update-shift', (_event, id: number, data: Record<string, any>) => {
     updateShift(id, data);
     return getShift(id);

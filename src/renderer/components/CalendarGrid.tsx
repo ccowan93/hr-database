@@ -18,6 +18,7 @@ interface DayData {
   time_off_type?: string | null;
   time_off_entries: TimeOffEntry[];
   records: any[];
+  flags?: string[]; // attendance flags: 'tardy', 'absent', 'left_early', 'long_lunch', 'partial_absence'
 }
 
 interface CalendarGridProps {
@@ -26,9 +27,18 @@ interface CalendarGridProps {
   dayDataMap: Map<string, DayData>; // key: "YYYY-MM-DD"
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
+  showFlags?: boolean; // Whether to show attendance flag indicators
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const FLAG_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
+  tardy: { label: 'Tardy', color: 'text-amber-600 dark:text-amber-400', icon: 'T' },
+  absent: { label: 'Absent', color: 'text-red-600 dark:text-red-400', icon: 'A' },
+  left_early: { label: 'Left Early', color: 'text-orange-600 dark:text-orange-400', icon: 'E' },
+  long_lunch: { label: 'Long Lunch', color: 'text-purple-600 dark:text-purple-400', icon: 'L' },
+  partial_absence: { label: 'Partial', color: 'text-pink-600 dark:text-pink-400', icon: 'P' },
+};
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
@@ -42,7 +52,7 @@ function formatDateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export default function CalendarGrid({ year, month, dayDataMap, selectedDate, onSelectDate }: CalendarGridProps) {
+export default function CalendarGrid({ year, month, dayDataMap, selectedDate, onSelectDate, showFlags }: CalendarGridProps) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfWeek(year, month);
 
@@ -71,6 +81,7 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
           const isToday = dateKey === todayKey;
           const isSelected = dateKey === selectedDate;
           const isWeekend = (firstDay + day - 1) % 7 === 0 || (firstDay + day - 1) % 7 === 6;
+          const flags = data?.flags || [];
 
           let statusColor = '';
           let statusDot = '';
@@ -78,6 +89,9 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
             if (data.has_time_off) {
               statusColor = 'bg-blue-50 dark:bg-blue-900/20';
               statusDot = 'bg-blue-500';
+            } else if (flags.includes('absent')) {
+              statusColor = 'bg-red-50 dark:bg-red-900/20';
+              statusDot = 'bg-red-500';
             } else if (data.missing_punch) {
               statusColor = 'bg-yellow-50 dark:bg-yellow-900/20';
               statusDot = 'bg-yellow-500';
@@ -85,10 +99,16 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
               statusColor = 'bg-green-50 dark:bg-green-900/20';
               statusDot = 'bg-emerald-500';
             }
-          } else if (!isWeekend) {
-            // No data for a weekday could mean absent
+          } else if (showFlags && flags.length === 0 && !isWeekend) {
+            // No data and no flags for a weekday
             statusColor = '';
             statusDot = '';
+          }
+
+          // For absent-only flag days with no attendance data
+          if (!data && flags.includes('absent')) {
+            statusColor = 'bg-red-50 dark:bg-red-900/20';
+            statusDot = 'bg-red-500';
           }
 
           return (
@@ -108,10 +128,30 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
                 `}>
                   {day}
                 </span>
-                {statusDot && <span className={`w-2 h-2 rounded-full ${statusDot}`} />}
+                <div className="flex items-center gap-0.5">
+                  {statusDot && <span className={`w-2 h-2 rounded-full ${statusDot}`} />}
+                </div>
               </div>
+              {/* Attendance flags */}
+              {showFlags && flags.length > 0 && (
+                <div className="flex flex-wrap gap-0.5 mt-0.5">
+                  {flags.filter(f => f !== 'absent').map(flag => {
+                    const cfg = FLAG_CONFIG[flag];
+                    if (!cfg) return null;
+                    return (
+                      <span
+                        key={flag}
+                        title={cfg.label}
+                        className={`text-[9px] font-bold px-1 rounded ${cfg.color} bg-white/60 dark:bg-gray-900/40`}
+                      >
+                        {cfg.icon}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               {data && (
-                <div className="mt-1 space-y-0.5">
+                <div className="mt-0.5 space-y-0.5">
                   {data.punch_in && (
                     <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
                       In: {data.punch_in}

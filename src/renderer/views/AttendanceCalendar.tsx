@@ -4,10 +4,18 @@ import CalendarGrid from '../components/CalendarGrid';
 import AttendanceDayDetail from '../components/AttendanceDayDetail';
 import AttendanceImportDialog from '../components/AttendanceImportDialog';
 import type { AttendanceRecord, AttendanceSummary, ParsedAttendanceResult, AttendanceImportBatch, TimeOffRequest } from '../types/attendance';
+import type { Shift } from '../types/employee';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const SALARY_FLAG_TYPES = [
+  { key: 'tardy', label: 'Tardy' },
+  { key: 'absent', label: 'Absent' },
+  { key: 'left_early', label: 'Left Early' },
+  { key: 'partial_absence', label: 'Partial Absence' },
 ];
 
 export default function AttendanceCalendar() {
@@ -16,7 +24,7 @@ export default function AttendanceCalendar() {
   const [month, setMonth] = useState(now.getMonth());
   const [employeeId, setEmployeeId] = useState<number | null>(null);
   const [department, setDepartment] = useState<string>('');
-  const [employees, setEmployees] = useState<{ id: number; employee_name: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: number; employee_name: string; shift_id?: number | null }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary | null>(null);
@@ -34,6 +42,11 @@ export default function AttendanceCalendar() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = React.useRef<HTMLDivElement>(null);
 
+  // Attendance flags state
+  const [attendanceFlags, setAttendanceFlags] = useState<{ date: string; flag_type: string }[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [isSalaryEmployee, setIsSalaryEmployee] = useState(false);
+
   // Close search results on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -45,12 +58,13 @@ export default function AttendanceCalendar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load employees and departments
+  // Load employees, departments, and shifts
   useEffect(() => {
     api.getAllEmployees({ status: 'active' }).then((emps: any[]) => {
-      setEmployees(emps.map(e => ({ id: e.id, employee_name: e.employee_name })));
+      setEmployees(emps.map(e => ({ id: e.id, employee_name: e.employee_name, shift_id: e.shift_id })));
     });
     api.getDepartments().then(setDepartments);
+    api.getAllShifts().then(setShifts);
   }, []);
 
   // Load imports list
@@ -61,6 +75,17 @@ export default function AttendanceCalendar() {
   // Compute date range for current month
   const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+
+  // Determine if selected employee is on a salary shift
+  useEffect(() => {
+    if (employeeId) {
+      const emp = employees.find(e => e.id === employeeId);
+      const shift = emp?.shift_id ? shifts.find(s => s.id === emp.shift_id) : null;
+      setIsSalaryEmployee(!!shift?.is_salary);
+    } else {
+      setIsSalaryEmployee(false);
+    }
+  }, [employeeId, employees, shifts]);
 
   // Load attendance data
   useEffect(() => {
@@ -73,7 +98,6 @@ export default function AttendanceCalendar() {
         } else if (department) {
           data = await api.getAttendanceByDept(department, startDate, endDate);
         } else {
-          // Use the new getAllAttendance endpoint
           data = await api.getAllAttendance(startDate, endDate);
         }
         setRecords(data);
@@ -94,6 +118,14 @@ export default function AttendanceCalendar() {
           ...(employeeId ? { employeeId } : {}),
         });
         setTimeOffRequests(timeOff);
+
+        // Fetch attendance flags if a single employee is selected
+        if (employeeId) {
+          const flags = await api.getCalendarAttendanceFlags(employeeId, startDate, endDate);
+          setAttendanceFlags(flags);
+        } else {
+          setAttendanceFlags([]);
+        }
       } catch (err) {
         console.error('Failed to load attendance:', err);
       }
@@ -126,6 +158,7 @@ export default function AttendanceCalendar() {
           time_off_type: null,
           time_off_entries: [],
           records: [record],
+          flags: [],
         });
       }
     }
@@ -138,7 +171,6 @@ export default function AttendanceCalendar() {
         request_type: req.request_type,
         department: req.current_department,
       };
-      // Expand date range into individual days
       const start = new Date(req.start_date + 'T00:00:00');
       const end = new Date(req.end_date + 'T00:00:00');
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -161,17 +193,53 @@ export default function AttendanceCalendar() {
             time_off_type: req.request_type,
             time_off_entries: [entry],
             records: [],
+            flags: [],
+          });
+        }
+      }
+    }
+
+    // Merge attendance flags into day data
+    if (employeeId && attendanceFlags.length > 0) {
+      const flagsByDate = new Map<string, string[]>();
+      for (const f of attendanceFlags) {
+        const arr = flagsByDate.get(f.date) || [];
+        arr.push(f.flag_type);
+        flagsByDate.set(f.date, arr);
+      }
+      for (const [date, flags] of flagsByDate) {
+        const existing = map.get(date);
+        if (existing) {
+          existing.flags = flags;
+        } else {
+          map.set(date, {
+            present: false,
+            punch_in: null,
+            punch_out: null,
+            reg_hours: 0,
+            ot_hours: 0,
+            missing_punch: false,
+            has_time_off: false,
+            time_off_type: null,
+            time_off_entries: [],
+            records: [],
+            flags,
           });
         }
       }
     }
 
     return map;
-  }, [records, timeOffRequests]);
+  }, [records, timeOffRequests, attendanceFlags, employeeId]);
 
   // Get records for selected date
   const selectedRecords = selectedDate
     ? records.filter(r => r.date === selectedDate)
+    : [];
+
+  // Get flags for selected date
+  const selectedFlags = selectedDate
+    ? (dayDataMap.get(selectedDate)?.flags || [])
     : [];
 
   const handlePrevMonth = () => {
@@ -188,7 +256,7 @@ export default function AttendanceCalendar() {
 
   const handleImport = async () => {
     const result = await api.parseAttendance();
-    if (!result) return; // user cancelled file dialog
+    if (!result) return;
     setParseResult(result);
     setShowImportDialog(true);
   };
@@ -221,6 +289,17 @@ export default function AttendanceCalendar() {
     } finally {
       setDeletingBatch(false);
     }
+  };
+
+  const handleToggleSalaryFlag = async (flagType: string) => {
+    if (!employeeId || !selectedDate) return;
+    const hasFlag = selectedFlags.includes(flagType);
+    if (hasFlag) {
+      await api.removeSalaryAttendanceFlag(employeeId, selectedDate, flagType);
+    } else {
+      await api.setSalaryAttendanceFlag(employeeId, selectedDate, flagType);
+    }
+    setReloadKey(k => k + 1);
   };
 
   return (
@@ -391,7 +470,7 @@ export default function AttendanceCalendar() {
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department</label>
           <select
             value={department}
-            onChange={e => { setDepartment(e.target.value); setEmployeeId(null); }}
+            onChange={e => { setDepartment(e.target.value); setEmployeeId(null); setEmployeeSearch(''); }}
             className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
           >
             <option value="">All Departments</option>
@@ -401,6 +480,18 @@ export default function AttendanceCalendar() {
           </select>
         </div>
       </div>
+
+      {/* Salary Employee Notice */}
+      {isSalaryEmployee && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-center gap-2">
+          <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span className="text-sm text-amber-800 dark:text-amber-200">
+            This is a salaried employee. Click a day to manually mark attendance flags (tardy, absent, left early, partial absence).
+          </span>
+        </div>
+      )}
 
       {/* Summary Stats */}
       {summary && (
@@ -442,10 +533,18 @@ export default function AttendanceCalendar() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
         <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Present</div>
         <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" /> Missing Punch</div>
         <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Time Off</div>
+        {employeeId && (
+          <>
+            <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Absent</div>
+            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-amber-600 bg-amber-50">T</span> Tardy</div>
+            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-orange-600 bg-orange-50">E</span> Left Early</div>
+            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-purple-600 bg-purple-50">L</span> Long Lunch</div>
+          </>
+        )}
       </div>
 
       {loading ? (
@@ -459,18 +558,78 @@ export default function AttendanceCalendar() {
               dayDataMap={dayDataMap}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
+              showFlags={!!employeeId}
             />
           </div>
           <div>
             {selectedDate ? (
-              <AttendanceDayDetail
-                date={selectedDate}
-                records={selectedRecords}
-                timeOffEntries={dayDataMap.get(selectedDate)?.time_off_entries || []}
-                onClose={() => setSelectedDate(null)}
-                onDeleteRecord={handleDeleteRecord}
-                onDeleteRecords={handleDeleteRecords}
-              />
+              <div className="space-y-4">
+                <AttendanceDayDetail
+                  date={selectedDate}
+                  records={selectedRecords}
+                  timeOffEntries={dayDataMap.get(selectedDate)?.time_off_entries || []}
+                  onClose={() => setSelectedDate(null)}
+                  onDeleteRecord={handleDeleteRecord}
+                  onDeleteRecords={handleDeleteRecords}
+                />
+
+                {/* Salary Manual Flags Panel */}
+                {isSalaryEmployee && employeeId && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Attendance Flags</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Toggle flags for this day:</p>
+                    <div className="space-y-2">
+                      {SALARY_FLAG_TYPES.map(ft => {
+                        const isActive = selectedFlags.includes(ft.key);
+                        return (
+                          <button
+                            key={ft.key}
+                            onClick={() => handleToggleSalaryFlag(ft.key)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                              isActive
+                                ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                            }`}
+                          >
+                            <span className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs ${
+                              isActive
+                                ? 'bg-red-500 border-red-500 text-white'
+                                : 'border-gray-300 dark:border-gray-500'
+                            }`}>
+                              {isActive && '✓'}
+                            </span>
+                            {ft.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Auto-computed flags display for hourly employees */}
+                {!isSalaryEmployee && employeeId && selectedFlags.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Attendance Flags</h3>
+                    <div className="space-y-1">
+                      {selectedFlags.map((flag: string) => {
+                        const labels: Record<string, { label: string; color: string }> = {
+                          tardy: { label: 'Tardy', color: 'text-amber-600 dark:text-amber-400' },
+                          absent: { label: 'Absent', color: 'text-red-600 dark:text-red-400' },
+                          left_early: { label: 'Left Early', color: 'text-orange-600 dark:text-orange-400' },
+                          long_lunch: { label: 'Long Lunch', color: 'text-purple-600 dark:text-purple-400' },
+                        };
+                        const cfg = labels[flag] || { label: flag, color: 'text-gray-600' };
+                        return (
+                          <div key={flag} className={`text-sm font-medium ${cfg.color} flex items-center gap-2`}>
+                            <span className="w-2 h-2 rounded-full bg-current" />
+                            {cfg.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
                 Click a day to view punch details

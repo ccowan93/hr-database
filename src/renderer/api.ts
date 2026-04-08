@@ -85,12 +85,18 @@ declare global {
       upsertTimeOffBalance: (employeeId: number, year: number, requestType: string, allocatedHours: number) => Promise<boolean>;
 
       // Attendance Reports
-      getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => Promise<OvertimeReportEntry[]>;
-      getAbsenteeismReport: (startDate: string, endDate: string) => Promise<AbsenteeismReportEntry[]>;
-      getTardinessReport: (startDate: string, endDate: string) => Promise<TardinessReportEntry[]>;
-      getLeftEarlyReport: (startDate: string, endDate: string) => Promise<LeftEarlyReportEntry[]>;
-      getLunchDurationReport: (startDate: string, endDate: string) => Promise<LunchDurationEntry[]>;
-      getTimeOffUsageReport: (year: number) => Promise<TimeOffUsageEntry[]>;
+      getOvertimeReport: (startDate: string, endDate: string, groupBy: string, filters?: { employeeIds?: number[]; department?: string }) => Promise<OvertimeReportEntry[]>;
+      getAbsenteeismReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => Promise<AbsenteeismReportEntry[]>;
+      getTardinessReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => Promise<TardinessReportEntry[]>;
+      getLeftEarlyReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => Promise<LeftEarlyReportEntry[]>;
+      getLunchDurationReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => Promise<LunchDurationEntry[]>;
+      getTimeOffUsageReport: (year: number, filters?: { employeeIds?: number[]; department?: string }) => Promise<TimeOffUsageEntry[]>;
+
+      // Calendar Attendance Flags
+      getCalendarAttendanceFlags: (employeeId: number, startDate: string, endDate: string) => Promise<{ date: string; flag_type: string }[]>;
+      getSalaryAttendanceFlags: (employeeId: number, startDate: string, endDate: string) => Promise<{ id: number; employee_id: number; date: string; flag_type: string; notes: string | null }[]>;
+      setSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string, notes?: string) => Promise<boolean>;
+      removeSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string) => Promise<boolean>;
 
       // Shift Configuration (legacy)
       getShiftConfig: () => Promise<{ dayShiftStart: string; nightShiftStart: string }>;

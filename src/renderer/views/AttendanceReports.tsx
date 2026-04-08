@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { api } from '../api';
 import type { OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, LeftEarlyReportEntry, LunchDurationEntry, TimeOffUsageEntry } from '../types/attendance';
@@ -31,6 +31,15 @@ export default function AttendanceReports() {
   const [groupBy, setGroupBy] = useState<'employee' | 'department'>('employee');
   const [year, setYear] = useState(new Date().getFullYear());
 
+  // Employee/Department filtering
+  const [employees, setEmployees] = useState<{ id: number; employee_name: string; current_department: string | null }[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
+
   // Report data
   const [overtimeData, setOvertimeData] = useState<OvertimeReportEntry[]>([]);
   const [absenteeismData, setAbsenteeismData] = useState<AbsenteeismReportEntry[]>([]);
@@ -40,31 +49,56 @@ export default function AttendanceReports() {
   const [timeOffData, setTimeOffData] = useState<TimeOffUsageEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Load employees and departments
+  useEffect(() => {
+    api.getAllEmployees({ status: 'active' }).then((emps: any[]) => {
+      setEmployees(emps.map(e => ({ id: e.id, employee_name: e.employee_name, current_department: e.current_department })));
+    });
+    api.getDepartments().then(setDepartments);
+  }, []);
+
+  // Close employee dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(e.target as Node)) {
+        setShowEmployeeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filters = {
+    ...(selectedEmployeeIds.length > 0 ? { employeeIds: selectedEmployeeIds } : {}),
+    ...(selectedDepartment ? { department: selectedDepartment } : {}),
+  };
+  const hasFilters = selectedEmployeeIds.length > 0 || !!selectedDepartment;
+
   useEffect(() => {
     loadReport();
-  }, [activeTab, startDate, endDate, groupBy, year]);
+  }, [activeTab, startDate, endDate, groupBy, year, selectedEmployeeIds, selectedDepartment]);
 
   const loadReport = async () => {
     setLoading(true);
     try {
       switch (activeTab) {
         case 'overtime':
-          setOvertimeData(await api.getOvertimeReport(startDate, endDate, groupBy));
+          setOvertimeData(await api.getOvertimeReport(startDate, endDate, groupBy, hasFilters ? filters : undefined));
           break;
         case 'absenteeism':
-          setAbsenteeismData(await api.getAbsenteeismReport(startDate, endDate));
+          setAbsenteeismData(await api.getAbsenteeismReport(startDate, endDate, hasFilters ? filters : undefined));
           break;
         case 'tardiness':
-          setTardinessData(await api.getTardinessReport(startDate, endDate));
+          setTardinessData(await api.getTardinessReport(startDate, endDate, hasFilters ? filters : undefined));
           break;
         case 'leftearly':
-          setLeftEarlyData(await api.getLeftEarlyReport(startDate, endDate));
+          setLeftEarlyData(await api.getLeftEarlyReport(startDate, endDate, hasFilters ? filters : undefined));
           break;
         case 'lunch':
-          setLunchData(await api.getLunchDurationReport(startDate, endDate));
+          setLunchData(await api.getLunchDurationReport(startDate, endDate, hasFilters ? filters : undefined));
           break;
         case 'timeoff':
-          setTimeOffData(await api.getTimeOffUsageReport(year));
+          setTimeOffData(await api.getTimeOffUsageReport(year, hasFilters ? filters : undefined));
           break;
       }
     } catch (err) {
@@ -72,6 +106,22 @@ export default function AttendanceReports() {
     }
     setLoading(false);
   };
+
+  const toggleEmployee = (id: number) => {
+    setSelectedEmployeeIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedEmployeeIds([]);
+    setSelectedDepartment('');
+    setEmployeeSearch('');
+  };
+
+  const filteredDropdownEmployees = employees.filter(e =>
+    e.employee_name.toLowerCase().includes(employeeSearch.toLowerCase())
+  );
 
   return (
     <div className="space-y-4">
@@ -98,53 +148,167 @@ export default function AttendanceReports() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        {activeTab !== 'timeoff' ? (
-          <>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-              />
-            </div>
-            {activeTab === 'overtime' && (
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+        <div className="flex items-end gap-4">
+          {activeTab !== 'timeoff' ? (
+            <>
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Group By</label>
-                <select
-                  value={groupBy}
-                  onChange={e => setGroupBy(e.target.value as any)}
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
                   className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                >
-                  <option value="employee">Employee</option>
-                  <option value="department">Department</option>
-                </select>
+                />
               </div>
-            )}
-          </>
-        ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              {activeTab === 'overtime' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Group By</label>
+                  <select
+                    value={groupBy}
+                    onChange={e => setGroupBy(e.target.value as any)}
+                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="department">Department</option>
+                  </select>
+                </div>
+              )}
+            </>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Year</label>
+              <select
+                value={year}
+                onChange={e => setYear(Number(e.target.value))}
+                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Department Filter */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Year</label>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department</label>
             <select
-              value={year}
-              onChange={e => setYear(Number(e.target.value))}
+              value={selectedDepartment}
+              onChange={e => { setSelectedDepartment(e.target.value); setSelectedEmployeeIds([]); }}
               className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
             >
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                <option key={y} value={y}>{y}</option>
+              <option value="">All Departments</option>
+              {departments.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
+          </div>
+
+          {/* Employee Multi-Select */}
+          <div className="relative" ref={employeeDropdownRef}>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Employees</label>
+            <button
+              onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 min-w-[180px] text-left flex items-center justify-between gap-2"
+            >
+              <span className="truncate">
+                {selectedEmployeeIds.length === 0
+                  ? 'All Employees'
+                  : selectedEmployeeIds.length === 1
+                    ? employees.find(e => e.id === selectedEmployeeIds[0])?.employee_name || '1 selected'
+                    : `${selectedEmployeeIds.length} selected`
+                }
+              </span>
+              <svg className={`w-4 h-4 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            {showEmployeeDropdown && (
+              <div className="absolute z-30 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                  <input
+                    type="text"
+                    value={employeeSearch}
+                    onChange={e => setEmployeeSearch(e.target.value)}
+                    placeholder="Search employees..."
+                    className="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-gray-100"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-60 overflow-y-auto p-1">
+                  {filteredDropdownEmployees.map(emp => (
+                    <button
+                      key={emp.id}
+                      onClick={() => toggleEmployee(emp.id)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] ${
+                        selectedEmployeeIds.includes(emp.id)
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : 'border-gray-300 dark:border-gray-500'
+                      }`}>
+                        {selectedEmployeeIds.includes(emp.id) && '✓'}
+                      </span>
+                      <span className="flex-1 truncate">{emp.employee_name}</span>
+                      {emp.current_department && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{emp.current_department}</span>
+                      )}
+                    </button>
+                  ))}
+                  {filteredDropdownEmployees.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No employees found.</p>
+                  )}
+                </div>
+                {selectedEmployeeIds.length > 0 && (
+                  <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setSelectedEmployeeIds([])}
+                      className="w-full px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Clear selection
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* Selected employees pills */}
+        {selectedEmployeeIds.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {selectedEmployeeIds.map(id => {
+              const emp = employees.find(e => e.id === id);
+              return emp ? (
+                <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-xs">
+                  {emp.employee_name}
+                  <button onClick={() => toggleEmployee(id)} className="hover:text-blue-600 dark:hover:text-blue-100">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              ) : null;
+            })}
           </div>
         )}
       </div>
@@ -314,7 +478,6 @@ function LeftEarlyReport({ data }: { data: LeftEarlyReportEntry[] }) {
 function LunchReport({ data }: { data: LunchDurationEntry[] }) {
   if (data.length === 0) return <EmptyState />;
 
-  // Aggregate by employee for the chart
   const byEmployee = new Map<string, { name: string; totalMinutes: number; count: number }>();
   for (const row of data) {
     const existing = byEmployee.get(row.employee_name) || { name: row.employee_name, totalMinutes: 0, count: 0 };

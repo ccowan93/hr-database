@@ -28,6 +28,7 @@ export interface Employee {
   scheduled_out?: string | null;
   scheduled_lunch_start?: string | null;
   scheduled_lunch_end?: string | null;
+  is_salary?: number | null;
   status?: 'active' | 'archived';
   archived_at?: string | null;
   photo_path?: string | null;
@@ -143,5 +144,6 @@ export interface Shift {
   scheduled_out: string;
   scheduled_lunch_start?: string | null;
   scheduled_lunch_end?: string | null;
+  is_salary?: number;
   created_at?: string;
 }

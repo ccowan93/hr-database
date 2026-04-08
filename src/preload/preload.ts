@@ -99,12 +99,18 @@ const electronAPI = {
   upsertTimeOffBalance: (employeeId: number, year: number, requestType: string, allocatedHours: number) => ipcRenderer.invoke('db:upsert-time-off-balance', employeeId, year, requestType, allocatedHours),
 
   // Attendance Reports
-  getOvertimeReport: (startDate: string, endDate: string, groupBy: string) => ipcRenderer.invoke('db:get-overtime-report', startDate, endDate, groupBy),
-  getAbsenteeismReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-absenteeism-report', startDate, endDate),
-  getTardinessReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate),
-  getLeftEarlyReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-left-early-report', startDate, endDate),
-  getLunchDurationReport: (startDate: string, endDate: string) => ipcRenderer.invoke('db:get-lunch-duration-report', startDate, endDate),
-  getTimeOffUsageReport: (year: number) => ipcRenderer.invoke('db:get-timeoff-usage-report', year),
+  getOvertimeReport: (startDate: string, endDate: string, groupBy: string, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-overtime-report', startDate, endDate, groupBy, filters),
+  getAbsenteeismReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-absenteeism-report', startDate, endDate, filters),
+  getTardinessReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-tardiness-report', startDate, endDate, filters),
+  getLeftEarlyReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-left-early-report', startDate, endDate, filters),
+  getLunchDurationReport: (startDate: string, endDate: string, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-lunch-duration-report', startDate, endDate, filters),
+  getTimeOffUsageReport: (year: number, filters?: { employeeIds?: number[]; department?: string }) => ipcRenderer.invoke('db:get-timeoff-usage-report', year, filters),
+
+  // Calendar Attendance Flags
+  getCalendarAttendanceFlags: (employeeId: number, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-calendar-attendance-flags', employeeId, startDate, endDate),
+  getSalaryAttendanceFlags: (employeeId: number, startDate: string, endDate: string) => ipcRenderer.invoke('db:get-salary-attendance-flags', employeeId, startDate, endDate),
+  setSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string, notes?: string) => ipcRenderer.invoke('db:set-salary-attendance-flag', employeeId, date, flagType, notes),
+  removeSalaryAttendanceFlag: (employeeId: number, date: string, flagType: string) => ipcRenderer.invoke('db:remove-salary-attendance-flag', employeeId, date, flagType),
 
   // OneDrive Cloud Backup
   onedriveGetStatus: () => ipcRenderer.invoke('onedrive:get-status'),
