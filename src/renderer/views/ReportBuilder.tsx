@@ -17,6 +17,7 @@ const ALL_COLUMNS = [
   { key: 'supervisory_role', label: 'Supervisory Role', type: 'text' },
   { key: 'dob', label: 'Date of Birth', type: 'date' },
   { key: 'doh', label: 'Date of Hire', type: 'date' },
+  { key: 'date_of_separation', label: 'Date of Separation', type: 'date' },
   { key: 'years_of_service', label: 'Years of Service', type: 'number' },
   { key: 'starting_pay_base', label: 'Starting Pay', type: 'number' },
   { key: 'current_pay_rate', label: 'Current Pay Rate', type: 'number' },

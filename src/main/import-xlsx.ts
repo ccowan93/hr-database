@@ -16,6 +16,7 @@ const COLUMN_MAP: Record<string, string> = {
   'Current Position': 'current_position',
   'Supervisory Role? Y/N': 'supervisory_role',
   'DOH': 'doh',
+  'Date of Separation': 'date_of_separation',
   'Years of Service': 'years_of_service',
   'Starting Pay (Base)': 'starting_pay_base',
   'Date of Previous Raise': 'date_previous_raise',

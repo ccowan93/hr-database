@@ -94,6 +94,9 @@ export function initDatabase(): Database.Database {
   // Migration: add shift column (legacy, kept for backward compat)
   try { db.exec(`ALTER TABLE employees ADD COLUMN shift TEXT DEFAULT 'day' CHECK(shift IN ('day','night'))`); } catch (_) {}
 
+  // Migration: add date_of_separation column
+  try { db.exec(`ALTER TABLE employees ADD COLUMN date_of_separation TEXT`); } catch (_) {}
+
   // ── Shifts Table ──
   db.exec(`
     CREATE TABLE IF NOT EXISTS shifts (
@@ -477,6 +480,22 @@ export function updateEmployee(id: number, data: Record<string, any>, changeSour
           change_source: changeSource,
         });
       }
+    }
+  }
+
+  // Auto-archive when date_of_separation is set
+  if (data.date_of_separation && data.date_of_separation.trim() !== '') {
+    const current = db.prepare('SELECT status FROM employees WHERE id = ?').get(id) as any;
+    if (current && current.status !== 'archived') {
+      archiveEmployee(id);
+    }
+  }
+
+  // Auto-restore when date_of_separation is cleared on an archived employee
+  if (data.date_of_separation !== undefined && (!data.date_of_separation || data.date_of_separation.trim() === '')) {
+    const current = db.prepare('SELECT status FROM employees WHERE id = ?').get(id) as any;
+    if (current && current.status === 'archived' && old && old.date_of_separation) {
+      restoreEmployee(id);
     }
   }
 }

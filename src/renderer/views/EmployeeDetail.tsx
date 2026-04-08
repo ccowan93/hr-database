@@ -159,6 +159,7 @@ export default function EmployeeDetail() {
             : `${employee.shift_name} (${employee.scheduled_in} – ${employee.scheduled_out})`
           : 'Unassigned' },
         { label: 'Date of Hire', value: employee.doh },
+        { label: 'Date of Separation', value: employee.date_of_separation },
         { label: 'Years of Service', value: employee.years_of_service },
         ...(isArchived ? [{ label: 'Archived On', value: employee.archived_at }] : []),
       ],

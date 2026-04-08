@@ -16,6 +16,7 @@ const COLUMN_HEADERS: Record<string, string> = {
   current_position: 'Position',
   supervisory_role: 'Supervisory Role',
   doh: 'Date of Hire',
+  date_of_separation: 'Date of Separation',
   years_of_service: 'Years of Service',
   starting_pay_base: 'Starting Pay',
   date_previous_raise: 'Previous Raise Date',

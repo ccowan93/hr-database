@@ -13,6 +13,7 @@ export interface Employee {
   current_position: string | null;
   supervisory_role: 'Y' | 'N' | null;
   doh: string | null;
+  date_of_separation: string | null;
   years_of_service: number | null;
   starting_pay_base: number | null;
   date_previous_raise: string | null;

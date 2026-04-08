@@ -30,6 +30,7 @@ const FIELD_GROUPS = [
       { key: 'supervisory_role', label: 'Supervisory Role', type: 'select', options: ['Y', 'N'] },
       { key: 'shift_id', label: 'Shift', type: 'shift-select' },
       { key: 'doh', label: 'Date of Hire', type: 'date' },
+      { key: 'date_of_separation', label: 'Date of Separation', type: 'date' },
     ],
   },
   {
