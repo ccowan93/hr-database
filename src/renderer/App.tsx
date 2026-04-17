@@ -17,12 +17,21 @@ import FmlaManager from './views/FmlaManager';
 import DisciplinaryList from './views/DisciplinaryList';
 import BenefitsAdmin from './views/BenefitsAdmin';
 import UpdateBanner from './components/UpdateBanner';
+import AuthGate from './components/AuthGate';
 
 export default function App() {
   useEffect(() => {
     api.getAppVersion().then(v => { (window as any).__appVersion = v; });
   }, []);
 
+  return (
+    <AuthGate>
+      <AppShell />
+    </AuthGate>
+  );
+}
+
+function AppShell() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />

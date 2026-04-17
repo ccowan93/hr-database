@@ -41,6 +41,10 @@ import { exportEmployeePDF, exportDashboardPDF } from './export-pdf';
 import { signIn as onedriveSignIn, signOut as onedriveSignOut, uploadBackup, restoreFromOneDrive, downloadBackupFile, getOneDriveStatus, setClientId, startBackupScheduler } from './onedrive-backup';
 import { runLocalBackup, getLocalBackupStatus, listLocalBackups, restoreLocalBackup, startLocalBackupScheduler } from './local-backup';
 import { saveConfig, getConfig } from './app-config';
+import {
+  getAuthStatus, setPassword, verifyPassword, changePassword,
+  promptTouchId, setTouchIdEnabled,
+} from './auth';
 
 export function registerIpcHandlers() {
   // ── Employee CRUD ──
@@ -507,4 +511,15 @@ export function registerIpcHandlers() {
     const { app } = require('electron');
     return app.getVersion();
   });
+
+  // ── Local Authentication ──
+  ipcMain.handle('auth:get-status', () => getAuthStatus());
+  ipcMain.handle('auth:set-password', (_event, password: string, enableTouchId?: boolean) =>
+    setPassword(password, !!enableTouchId));
+  ipcMain.handle('auth:verify-password', (_event, password: string) => verifyPassword(password));
+  ipcMain.handle('auth:change-password', (_event, oldPassword: string, newPassword: string) =>
+    changePassword(oldPassword, newPassword));
+  ipcMain.handle('auth:prompt-touch-id', (_event, reason?: string) =>
+    promptTouchId(reason || 'unlock HR Database'));
+  ipcMain.handle('auth:set-touch-id-enabled', (_event, enabled: boolean) => setTouchIdEnabled(enabled));
 }

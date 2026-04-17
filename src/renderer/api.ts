@@ -181,6 +181,14 @@ declare global {
       getPostUpdateInfo: () => Promise<{ version: string; releaseNotes: string } | null>;
       openReleasePage: (url?: string) => Promise<void>;
       getAppVersion: () => Promise<string>;
+      // Local Authentication
+      authGetStatus: () => Promise<{ configured: boolean; touchIdAvailable: boolean; touchIdEnabled: boolean }>;
+      authSetPassword: (password: string, enableTouchId?: boolean) => Promise<{ ok: boolean; error?: string }>;
+      authVerifyPassword: (password: string) => Promise<boolean>;
+      authChangePassword: (oldPassword: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
+      authPromptTouchId: (reason?: string) => Promise<{ ok: boolean; error?: string }>;
+      authSetTouchIdEnabled: (enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+
       onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => () => void;
       onUpdateDownloaded: (callback: () => void) => () => void;
       onUpdateError: (callback: (message: string) => void) => () => void;

@@ -100,6 +100,11 @@ The app checks for updates automatically and can download and install them in-ap
 - Post-update release notes modal shown on first launch after updating
 - Fallback manual download link if auto-update fails
 
+### Local Authentication
+- App password required on every launch (prompts to set one on first run after updating)
+- Passwords stored as PBKDF2-SHA512 hashes with per-install salt (never in plaintext)
+- Touch ID unlock on macOS via `systemPreferences.promptTouchID` (opt-in during setup)
+
 ### Other
 - Dark mode with system-aware toggle
 - Local auto-backup with configurable interval and retention

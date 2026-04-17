@@ -196,6 +196,14 @@ const electronAPI = {
   openReleasePage: (url?: string) => ipcRenderer.invoke('app:open-release-page', url),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 
+  // Local Authentication
+  authGetStatus: () => ipcRenderer.invoke('auth:get-status'),
+  authSetPassword: (password: string, enableTouchId?: boolean) => ipcRenderer.invoke('auth:set-password', password, enableTouchId),
+  authVerifyPassword: (password: string) => ipcRenderer.invoke('auth:verify-password', password),
+  authChangePassword: (oldPassword: string, newPassword: string) => ipcRenderer.invoke('auth:change-password', oldPassword, newPassword),
+  authPromptTouchId: (reason?: string) => ipcRenderer.invoke('auth:prompt-touch-id', reason),
+  authSetTouchIdEnabled: (enabled: boolean) => ipcRenderer.invoke('auth:set-touch-id-enabled', enabled),
+
   // Update event listeners
   onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
     const listener = (_event: any, progress: any) => callback(progress);
