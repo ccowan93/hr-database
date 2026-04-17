@@ -100,10 +100,21 @@ The app checks for updates automatically and can download and install them in-ap
 - Post-update release notes modal shown on first launch after updating
 - Fallback manual download link if auto-update fails
 
-### Local Authentication
+### Local Authentication & Encryption
 - App password required on every launch (prompts to set one on first run after updating)
 - Passwords stored as PBKDF2-SHA512 hashes with per-install salt (never in plaintext)
 - Touch ID unlock on macOS via `systemPreferences.promptTouchID` (opt-in during setup)
+- **Database encrypted at rest** with SQLCipher (AES-256). Random per-install DEK wrapped with a KEK derived from the password via PBKDF2; AES-256-GCM wrap/unwrap
+- Touch ID unlock uses Electron `safeStorage` (OS keychain) to encrypt a second copy of the DEK
+- **Local and OneDrive backups are encrypted** because they are direct copies of the SQLCipher database file
+- Existing plaintext databases are migrated to encrypted automatically on first unlock after upgrading
+
+### Bug Reporting
+- Built-in "Report a bug" button in Settings → Support
+- Collects app version, OS, Electron/Chrome versions, display info, sanitized config, and the last 400 log lines
+- Persistent logger at `{userData}/logs/app.log` captures main and renderer errors (rotated at 5 MB)
+- Saves a JSON diagnostic bundle you can attach to an email or GitHub issue
+- One-click "Open GitHub issue" prefills a new issue with environment info
 
 ### Other
 - Dark mode with system-aware toggle

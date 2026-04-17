@@ -199,10 +199,19 @@ const electronAPI = {
   // Local Authentication
   authGetStatus: () => ipcRenderer.invoke('auth:get-status'),
   authSetPassword: (password: string, enableTouchId?: boolean) => ipcRenderer.invoke('auth:set-password', password, enableTouchId),
-  authVerifyPassword: (password: string) => ipcRenderer.invoke('auth:verify-password', password),
+  authUnlockPassword: (password: string) => ipcRenderer.invoke('auth:unlock-password', password),
+  authUnlockTouchId: (reason?: string) => ipcRenderer.invoke('auth:unlock-touch-id', reason),
   authChangePassword: (oldPassword: string, newPassword: string) => ipcRenderer.invoke('auth:change-password', oldPassword, newPassword),
-  authPromptTouchId: (reason?: string) => ipcRenderer.invoke('auth:prompt-touch-id', reason),
-  authSetTouchIdEnabled: (enabled: boolean) => ipcRenderer.invoke('auth:set-touch-id-enabled', enabled),
+  authSetTouchIdEnabled: (enabled: boolean, password?: string) => ipcRenderer.invoke('auth:set-touch-id-enabled', enabled, password),
+
+  // Bug Reporting
+  bugGetLogTail: (lines?: number) => ipcRenderer.invoke('bug:get-log-tail', lines),
+  bugSaveReport: (data: { description: string; email?: string; stepsToReproduce?: string; includeLogs?: boolean }) =>
+    ipcRenderer.invoke('bug:save-report', data),
+  bugGetGithubUrl: (data: { description?: string; summary?: string }) =>
+    ipcRenderer.invoke('bug:get-github-url', data),
+  logRenderer: (level: 'error' | 'warn' | 'info', message: string) =>
+    ipcRenderer.send('log:renderer', { level, message }),
 
   // Update event listeners
   onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {

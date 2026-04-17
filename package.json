@@ -1,6 +1,6 @@
 {
   "name": "hr-database",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "HR Employee Database Desktop App",
   "main": "dist/main/main.js",
   "overrides": {
@@ -72,7 +72,7 @@
   "dependencies": {
     "@azure/msal-node": "^5.1.2",
     "@tailwindcss/vite": "^4.2.2",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3-multiple-ciphers": "^12.2.0",
     "dompurify": "^3.3.3",
     "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",

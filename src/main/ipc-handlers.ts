@@ -42,9 +42,11 @@ import { signIn as onedriveSignIn, signOut as onedriveSignOut, uploadBackup, res
 import { runLocalBackup, getLocalBackupStatus, listLocalBackups, restoreLocalBackup, startLocalBackupScheduler } from './local-backup';
 import { saveConfig, getConfig } from './app-config';
 import {
-  getAuthStatus, setPassword, verifyPassword, changePassword,
-  promptTouchId, setTouchIdEnabled,
+  getAuthStatus, setPassword, unlockWithPassword, unlockWithTouchId,
+  changePassword, setTouchIdEnabled,
 } from './auth';
+import { buildBugReport, saveBugReport, getGithubIssueUrl } from './bug-report';
+import { getLogTail } from './logger';
 
 export function registerIpcHandlers() {
   // ── Employee CRUD ──
@@ -288,19 +290,20 @@ export function registerIpcHandlers() {
       properties: ['openFile'],
     });
     if (result.canceled || result.filePaths.length === 0) return { success: false, error: 'Cancelled' };
+    const { getActiveKeyHex } = require('./database');
+    const keyHex = getActiveKeyHex();
     try {
       const dbPath = getDbPath();
       const backupPath = result.filePaths[0];
       getDb().close();
       fs.copyFileSync(backupPath, dbPath);
-      // Remove WAL/SHM files if they exist
       try { fs.unlinkSync(dbPath + '-wal'); } catch (_) {}
       try { fs.unlinkSync(dbPath + '-shm'); } catch (_) {}
-      initDatabase();
+      initDatabase(keyHex || undefined);
       return { success: true };
     } catch (err: any) {
-      try { initDatabase(); } catch (_) {}
-      return { success: false, error: err.message };
+      try { initDatabase(keyHex || undefined); } catch (_) {}
+      return { success: false, error: err.message || 'Restore failed. The backup may be from a different install.' };
     }
   });
 
@@ -516,10 +519,25 @@ export function registerIpcHandlers() {
   ipcMain.handle('auth:get-status', () => getAuthStatus());
   ipcMain.handle('auth:set-password', (_event, password: string, enableTouchId?: boolean) =>
     setPassword(password, !!enableTouchId));
-  ipcMain.handle('auth:verify-password', (_event, password: string) => verifyPassword(password));
+  ipcMain.handle('auth:unlock-password', (_event, password: string) => unlockWithPassword(password));
+  ipcMain.handle('auth:unlock-touch-id', (_event, reason?: string) =>
+    unlockWithTouchId(reason || 'unlock HR Database'));
   ipcMain.handle('auth:change-password', (_event, oldPassword: string, newPassword: string) =>
     changePassword(oldPassword, newPassword));
-  ipcMain.handle('auth:prompt-touch-id', (_event, reason?: string) =>
-    promptTouchId(reason || 'unlock HR Database'));
-  ipcMain.handle('auth:set-touch-id-enabled', (_event, enabled: boolean) => setTouchIdEnabled(enabled));
+  ipcMain.handle('auth:set-touch-id-enabled', (_event, enabled: boolean, password?: string) =>
+    setTouchIdEnabled(enabled, password));
+
+  // ── Bug Reporting ──
+  ipcMain.handle('bug:get-log-tail', (_event, lines?: number) => getLogTail(lines || 400));
+  ipcMain.handle('bug:save-report', async (_event, data: {
+    description: string;
+    email?: string;
+    stepsToReproduce?: string;
+    includeLogs?: boolean;
+  }) => {
+    const report = buildBugReport(data);
+    return saveBugReport(report);
+  });
+  ipcMain.handle('bug:get-github-url', (_event, data: { description?: string; summary?: string }) =>
+    getGithubIssueUrl(data));
 }

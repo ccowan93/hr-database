@@ -1,9 +1,10 @@
-import Database from 'better-sqlite3';
+import Database from 'better-sqlite3-multiple-ciphers';
 import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
 
 let db: Database.Database;
+let activeKeyHex: string | null = null;
 
 const ACTIVE_FILTER = `(status = 'active' OR status IS NULL)`;
 
@@ -12,9 +13,70 @@ export function getDbPath(): string {
   return path.join(userDataPath, 'hr-database.sqlite');
 }
 
-export function initDatabase(): Database.Database {
+function quoteSqlcipherKey(keyHex: string): string {
+  // SQLCipher raw-key syntax: PRAGMA key = "x'<hex>'"
+  return `x'${keyHex}'`;
+}
+
+/** Detect whether an existing database file is plaintext SQLite. */
+function isPlaintextSqliteFile(dbPath: string): boolean {
+  if (!fs.existsSync(dbPath)) return false;
+  try {
+    const stat = fs.statSync(dbPath);
+    if (stat.size < 16) return false;
+    const fd = fs.openSync(dbPath, 'r');
+    const buf = Buffer.alloc(16);
+    fs.readSync(fd, buf, 0, 16, 0);
+    fs.closeSync(fd);
+    return buf.toString('utf8') === 'SQLite format 3\u0000';
+  } catch {
+    return false;
+  }
+}
+
+/** Migrate a plaintext SQLite database at dbPath to SQLCipher encrypted using keyHex. */
+function migratePlaintextToEncrypted(dbPath: string, keyHex: string): void {
+  const tmpEnc = dbPath + '.enc-migrating';
+  try { fs.unlinkSync(tmpEnc); } catch (_) {}
+  try { fs.unlinkSync(tmpEnc + '-wal'); } catch (_) {}
+  try { fs.unlinkSync(tmpEnc + '-shm'); } catch (_) {}
+
+  const plain = new Database(dbPath);
+  try {
+    plain.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch (_) {}
+  try {
+    plain.exec(`ATTACH DATABASE '${tmpEnc.replace(/'/g, "''")}' AS encrypted KEY "${quoteSqlcipherKey(keyHex)}"`);
+    plain.exec(`SELECT sqlcipher_export('encrypted')`);
+    plain.exec('DETACH DATABASE encrypted');
+  } finally {
+    plain.close();
+  }
+
+  // Remove old plaintext files and replace with encrypted version
+  try { fs.unlinkSync(dbPath); } catch (_) {}
+  try { fs.unlinkSync(dbPath + '-wal'); } catch (_) {}
+  try { fs.unlinkSync(dbPath + '-shm'); } catch (_) {}
+  fs.renameSync(tmpEnc, dbPath);
+}
+
+/** Open the database, applying the SQLCipher key if provided. Migrates plaintext DBs on first use. */
+export function initDatabase(keyHex?: string): Database.Database {
   const dbPath = getDbPath();
+
+  if (keyHex && isPlaintextSqliteFile(dbPath)) {
+    migratePlaintextToEncrypted(dbPath, keyHex);
+  }
+
   db = new Database(dbPath);
+  if (keyHex) {
+    activeKeyHex = keyHex;
+    db.pragma(`key = "${quoteSqlcipherKey(keyHex)}"`);
+    // Touch the DB to verify the key works
+    db.prepare('SELECT count(*) FROM sqlite_master').get();
+  } else {
+    activeKeyHex = null;
+  }
   db.pragma('journal_mode = WAL');
 
   db.exec(`
@@ -424,7 +486,31 @@ export function refreshComputedFields(): void {
 }
 
 export function getDb(): Database.Database {
+  if (!db) throw new Error('Database not initialized. Unlock the app first.');
   return db;
+}
+
+export function isDatabaseOpen(): boolean {
+  return !!db;
+}
+
+export function closeDatabase(): void {
+  if (db) {
+    try { db.close(); } catch (_) {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    db = undefined as any;
+  }
+  activeKeyHex = null;
+}
+
+export function rekeyDatabase(newKeyHex: string): void {
+  if (!db) throw new Error('Database not open');
+  db.pragma(`rekey = "${quoteSqlcipherKey(newKeyHex)}"`);
+  activeKeyHex = newKeyHex;
+}
+
+export function getActiveKeyHex(): string | null {
+  return activeKeyHex;
 }
 
 export function resetDatabase(): void {

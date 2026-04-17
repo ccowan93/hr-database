@@ -182,12 +182,19 @@ declare global {
       openReleasePage: (url?: string) => Promise<void>;
       getAppVersion: () => Promise<string>;
       // Local Authentication
-      authGetStatus: () => Promise<{ configured: boolean; touchIdAvailable: boolean; touchIdEnabled: boolean }>;
+      authGetStatus: () => Promise<{ configured: boolean; touchIdAvailable: boolean; touchIdEnabled: boolean; encryptionReady: boolean }>;
       authSetPassword: (password: string, enableTouchId?: boolean) => Promise<{ ok: boolean; error?: string }>;
-      authVerifyPassword: (password: string) => Promise<boolean>;
+      authUnlockPassword: (password: string) => Promise<{ ok: boolean; error?: string }>;
+      authUnlockTouchId: (reason?: string) => Promise<{ ok: boolean; error?: string }>;
       authChangePassword: (oldPassword: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
-      authPromptTouchId: (reason?: string) => Promise<{ ok: boolean; error?: string }>;
-      authSetTouchIdEnabled: (enabled: boolean) => Promise<{ ok: boolean; error?: string }>;
+      authSetTouchIdEnabled: (enabled: boolean, password?: string) => Promise<{ ok: boolean; error?: string }>;
+
+      // Bug Reporting
+      bugGetLogTail: (lines?: number) => Promise<string>;
+      bugSaveReport: (data: { description: string; email?: string; stepsToReproduce?: string; includeLogs?: boolean }) =>
+        Promise<{ success: boolean; path?: string; error?: string; cancelled?: boolean }>;
+      bugGetGithubUrl: (data: { description?: string; summary?: string }) => Promise<string>;
+      logRenderer: (level: 'error' | 'warn' | 'info', message: string) => void;
 
       onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => () => void;
       onUpdateDownloaded: (callback: () => void) => () => void;

@@ -26,6 +26,11 @@ export interface AppConfig {
     salt: string | null;
     iterations: number;
     touchIdEnabled: boolean;
+    kekSalt: string | null;
+    dekCiphertext: string | null;
+    dekIv: string | null;
+    dekTag: string | null;
+    dekSafeStorage: string | null;
   };
 }
 
@@ -53,6 +58,11 @@ const DEFAULT_CONFIG: AppConfig = {
     salt: null,
     iterations: 210000,
     touchIdEnabled: false,
+    kekSalt: null,
+    dekCiphertext: null,
+    dekIv: null,
+    dekTag: null,
+    dekSafeStorage: null,
   },
 };
 

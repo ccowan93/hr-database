@@ -1,11 +1,12 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
-import { initDatabase } from './database';
 import { registerIpcHandlers } from './ipc-handlers';
 import { loadConfig } from './app-config';
 import { startBackupScheduler, stopBackupScheduler } from './onedrive-backup';
 import { startLocalBackupScheduler, stopLocalBackupScheduler } from './local-backup';
 import { setUpdateWindow } from './update-checker';
+import { setOnUnlock } from './auth';
+import { installLogger } from './logger';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -33,7 +34,6 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
-  // Connect window to auto-updater for progress events
   setUpdateWindow(mainWindow);
 
   mainWindow.on('closed', () => {
@@ -42,14 +42,18 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  initDatabase();
+  installLogger();
   loadConfig();
   registerIpcHandlers();
-  createWindow();
 
-  // Start backup schedulers if configured
-  startBackupScheduler();
-  startLocalBackupScheduler();
+  // Start backup schedulers only after the user unlocks the app; the DB
+  // cannot be opened until the encryption key is derived from the password.
+  setOnUnlock(() => {
+    try { startBackupScheduler(); } catch (err) { console.error('[main] onedrive scheduler failed:', err); }
+    try { startLocalBackupScheduler(); } catch (err) { console.error('[main] local scheduler failed:', err); }
+  });
+
+  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

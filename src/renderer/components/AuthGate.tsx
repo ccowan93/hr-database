@@ -5,6 +5,7 @@ interface AuthStatus {
   configured: boolean;
   touchIdAvailable: boolean;
   touchIdEnabled: boolean;
+  encryptionReady: boolean;
 }
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -41,7 +42,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       setStatus(s);
       setEnableTouchId(s.touchIdAvailable);
     }).catch(() => {
-      setStatus({ configured: false, touchIdAvailable: false, touchIdEnabled: false });
+      setStatus({ configured: false, touchIdAvailable: false, touchIdEnabled: false, encryptionReady: false });
     });
   }, []);
 
@@ -50,7 +51,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.authPromptTouchId('unlock HR Database');
+      const result = await api.authUnlockTouchId('unlock HR Database');
       if (result.ok) {
         setUnlocked(true);
       } else if (result.error) {
@@ -122,12 +123,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setError(null);
     setBusy(true);
     try {
-      const ok = await api.authVerifyPassword(password);
-      if (ok) {
+      const result = await api.authUnlockPassword(password);
+      if (result.ok) {
         setPassword('');
         setUnlocked(true);
       } else {
-        setError('Incorrect password');
+        setError(result.error || 'Incorrect password');
       }
     } finally {
       setBusy(false);
