@@ -21,7 +21,11 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      - name: Build renderer + main
+        env:
+          BUG_RELAY_URL: ${{ secrets.BUG_RELAY_URL }}
+          BUG_RELAY_SECRET: ${{ secrets.BUG_RELAY_SECRET }}
+        run: npm run build
 
       - name: Build & Publish Windows Installer
         env:
@@ -42,7 +46,11 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      - name: Build renderer + main
+        env:
+          BUG_RELAY_URL: ${{ secrets.BUG_RELAY_URL }}
+          BUG_RELAY_SECRET: ${{ secrets.BUG_RELAY_SECRET }}
+        run: npm run build
 
       # Import signing certificate
       - name: Import Code Signing Certificate
