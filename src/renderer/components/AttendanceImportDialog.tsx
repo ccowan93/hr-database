@@ -38,7 +38,6 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
     const next = new Map(searchTerms);
     next.set(rawName, term);
     setSearchTerms(next);
-    // Clear mapping if user edits the text after selecting
     if (manualMappings.has(rawName)) {
       const nextMappings = new Map(manualMappings);
       nextMappings.delete(rawName);
@@ -64,7 +63,6 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
         employeeId,
       }));
 
-      // Apply manual mappings to records before sending
       const records = parseResult.records.map(r => {
         const mapped = manualMappings.get(r.employee_name_raw);
         if (mapped != null) {
@@ -94,7 +92,6 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
     }
   };
 
-  // Compute summary for confirmation step
   const mappingSummary = useMemo(() => {
     return Array.from(manualMappings.entries()).map(([rawName, empId]) => {
       const emp = employees.find(e => e.id === empId);
@@ -109,31 +106,34 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
   // Step: Review matches
   if (step === 'review') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Review Employee Matches
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {parseResult.records.length} attendance records parsed from file
-            </p>
+      <div
+        className="kin-modal-backdrop"
+        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="kin-modal" style={{ maxWidth: 640, maxHeight: '85vh' }}>
+          <div className="kin-modal-head">
+            <div style={{ flex: 1 }}>
+              <h2 className="kin-modal-title">Review Employee Matches</h2>
+              <div className="small muted">
+                {parseResult.records.length} attendance records parsed from file
+              </div>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="kin-modal-body">
             {/* Auto-matched */}
             {parseResult.matched.length > 0 && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-green-800 dark:text-green-300 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <div className="kin-alert" style={{ borderColor: 'var(--success)' }}>
+                <div className="kin-alert-title" style={{ color: 'var(--success)' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                   Auto-Matched ({parseResult.matched.length})
-                </h3>
-                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                </div>
+                <div className="vstack" style={{ gap: 2, marginTop: 6, maxHeight: 128, overflowY: 'auto' }}>
                   {parseResult.matched.map(m => (
-                    <div key={m.rawName} className="text-sm text-green-700 dark:text-green-400">
-                      {m.rawName} {m.rawName !== m.employeeName && <span className="text-green-500">= {m.employeeName}</span>}
+                    <div key={m.rawName} className="small" style={{ color: 'var(--ink-2)' }}>
+                      {m.rawName} {m.rawName !== m.employeeName && <span className="muted">= {m.employeeName}</span>}
                     </div>
                   ))}
                 </div>
@@ -142,57 +142,69 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
 
             {/* Unmatched - needs manual mapping */}
             {parseResult.unmatched.length > 0 && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-1">
+              <div className="kin-alert warn">
+                <div className="kin-alert-title">
                   Unmatched Employees ({parseResult.unmatched.length})
-                </h3>
-                <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-3">
+                </div>
+                <p className="small" style={{ margin: '4px 0 10px 0' }}>
                   Select the matching employee from the database for each time clock name. Matched employees will have their name updated in the system to match the time clock for future imports.
                 </p>
-                <div className="space-y-3">
+                <div className="vstack" style={{ gap: 10 }}>
                   {parseResult.unmatched.map(u => (
-                    <div key={u.rawName} className="flex items-center gap-3">
-                      <div className="min-w-[160px]">
-                        <div className="text-sm font-medium text-yellow-900 dark:text-yellow-200">{u.rawName}</div>
-                        <div className="text-xs text-yellow-600 dark:text-yellow-500">ID: {u.employeeIdRaw}, PIN: {u.pinNumber}</div>
+                    <div key={u.rawName} className="hstack" style={{ gap: 10, alignItems: 'center' }}>
+                      <div style={{ minWidth: 160 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{u.rawName}</div>
+                        <div className="small muted">ID: {u.employeeIdRaw}, PIN: {u.pinNumber}</div>
                       </div>
-                      <span className="text-gray-400 text-sm flex-shrink-0">-&gt;</span>
-                      <div className="flex-1 relative">
-                        <div className="relative">
+                      <span className="muted small" style={{ flexShrink: 0 }}>-&gt;</span>
+                      <div style={{ flex: 1, position: 'relative' }}>
+                        <div style={{ position: 'relative' }}>
                           <input
                             type="text"
                             placeholder="Type to search employees..."
                             value={searchTerms.get(u.rawName) ?? ''}
                             onChange={e => handleSearchChange(u.rawName, e.target.value)}
                             onFocus={() => setOpenDropdown(u.rawName)}
-                            className={`w-full px-3 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 ${
-                              manualMappings.has(u.rawName)
-                                ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700'
-                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
-                            }`}
+                            className="input"
+                            style={manualMappings.has(u.rawName) ? { background: 'var(--accent-soft)', borderColor: 'var(--success)' } : undefined}
                           />
                           {manualMappings.has(u.rawName) && (
                             <button
                               onClick={() => handleMapping(u.rawName, null)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--ink-4)', display: 'flex', alignItems: 'center' }}
                               title="Clear selection"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           )}
                         </div>
                         {openDropdown === u.rawName && !manualMappings.has(u.rawName) && (
-                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          <div
+                            style={{
+                              position: 'absolute',
+                              zIndex: 10,
+                              width: '100%',
+                              marginTop: 4,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--line)',
+                              borderRadius: 'var(--radius-sm)',
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                              maxHeight: 160,
+                              overflowY: 'auto',
+                            }}
+                          >
                             {filteredEmployees(u.rawName).length === 0 ? (
-                              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No matches found</div>
+                              <div className="small muted" style={{ padding: '8px 12px' }}>No matches found</div>
                             ) : (
                               filteredEmployees(u.rawName).map(emp => (
                                 <button
                                   key={emp.id}
                                   onClick={() => handleMapping(u.rawName, emp.id, emp.employee_name)}
-                                  className="w-full text-left px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                  style={{ width: '100%', textAlign: 'left', padding: '6px 12px', fontSize: 13, color: 'var(--ink)', background: 'transparent', border: 0, cursor: 'pointer' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                                 >
                                   {emp.employee_name}
                                 </button>
@@ -209,33 +221,33 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
 
             {/* Parse errors */}
             {parseResult.errors.length > 0 && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
+              <div className="kin-alert danger">
+                <div className="kin-alert-title">
                   Parse Warnings ({parseResult.errors.length})
-                </h3>
-                <div className="max-h-24 overflow-y-auto space-y-1">
+                </div>
+                <div className="vstack" style={{ gap: 2, marginTop: 6, maxHeight: 96, overflowY: 'auto' }}>
                   {parseResult.errors.map((err, i) => (
-                    <div key={i} className="text-sm text-red-700 dark:text-red-400">{err}</div>
+                    <div key={i} className="small">{err}</div>
                   ))}
                 </div>
               </div>
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="kin-modal-foot" style={{ justifyContent: 'space-between' }}>
+            <div className="small muted">
               {totalMapped} matched, {totalUnmappedLeft > 0 ? `${totalUnmappedLeft} unlinked` : 'all linked'}
             </div>
-            <div className="flex gap-3">
+            <div className="hstack" style={{ gap: 8 }}>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                className="btn ghost"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStep('confirm')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                className="btn primary"
               >
                 Continue
               </button>
@@ -249,41 +261,40 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
   // Step: Confirmation review
   if (step === 'confirm') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Confirm Import
-            </h2>
+      <div
+        className="kin-modal-backdrop"
+        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="kin-modal" style={{ maxWidth: 520 }}>
+          <div className="kin-modal-head">
+            <h2 className="kin-modal-title">Confirm Import</h2>
           </div>
 
-          <div className="px-6 py-4 space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{parseResult.records.length}</div>
-                <div className="text-xs text-blue-600 dark:text-blue-500">Records</div>
+          <div className="kin-modal-body">
+            <div className="grid-3">
+              <div className="card" style={{ padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent-ink)' }}>{parseResult.records.length}</div>
+                <div className="small muted">Records</div>
               </div>
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-green-700 dark:text-green-400">{parseResult.matched.length}</div>
-                <div className="text-xs text-green-600 dark:text-green-500">Auto-Matched</div>
+              <div className="card" style={{ padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{parseResult.matched.length}</div>
+                <div className="small muted">Auto-Matched</div>
               </div>
-              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">{manualMappings.size}</div>
-                <div className="text-xs text-purple-600 dark:text-purple-500">Manually Mapped</div>
+              <div className="card" style={{ padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{manualMappings.size}</div>
+                <div className="small muted">Manually Mapped</div>
               </div>
             </div>
 
             {mappingSummary.length > 0 && (
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">
-                  Name Updates
-                </h3>
-                <p className="text-xs text-purple-700 dark:text-purple-400 mb-2">
+              <div className="kin-alert info">
+                <div className="kin-alert-title">Name Updates</div>
+                <p className="small" style={{ margin: '4px 0 6px 0' }}>
                   These employees will be renamed to match the time clock name:
                 </p>
-                <div className="space-y-1">
+                <div className="vstack" style={{ gap: 2 }}>
                   {mappingSummary.map(m => (
-                    <div key={m.rawName} className="text-sm text-purple-900 dark:text-purple-200">
+                    <div key={m.rawName} className="small" style={{ color: 'var(--ink)' }}>
                       {m.employeeName} -&gt; {m.rawName}
                     </div>
                   ))}
@@ -292,29 +303,32 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
             )}
 
             {totalUnmappedLeft > 0 && (
-              <div className="text-sm text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
-                {totalUnmappedLeft} employee(s) will be imported without being linked to a profile.
+              <div className="kin-alert warn">
+                <div className="small">
+                  {totalUnmappedLeft} employee(s) will be imported without being linked to a profile.
+                </div>
               </div>
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+          <div className="kin-modal-foot" style={{ justifyContent: 'space-between' }}>
             <button
               onClick={() => setStep('review')}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+              className="btn ghost"
             >
               Back
             </button>
-            <div className="flex gap-3">
+            <div className="hstack" style={{ gap: 8 }}>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                className="btn ghost"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                className="btn primary"
+                style={{ background: 'var(--success)' }}
               >
                 Import {parseResult.records.length} Records
               </button>
@@ -328,10 +342,20 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
   // Step: Importing (spinner)
   if (step === 'importing') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm mx-4 p-8 text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-gray-700 dark:text-gray-300 font-medium">Importing attendance records...</p>
+      <div className="kin-modal-backdrop">
+        <div className="kin-modal" style={{ maxWidth: 360, padding: 32, textAlign: 'center' }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              border: '4px solid var(--accent)',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              margin: '0 auto 16px',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
+          <p style={{ margin: 0, color: 'var(--ink)', fontWeight: 500 }}>Importing attendance records...</p>
         </div>
       </div>
     );
@@ -341,57 +365,54 @@ export default function AttendanceImportDialog({ parseResult, employees, onClose
   if (step === 'results' && importResult) {
     const hasErrors = importResult.errors.length > 0;
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Import Results
-            </h2>
+      <div
+        className="kin-modal-backdrop"
+        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="kin-modal" style={{ maxWidth: 520 }}>
+          <div className="kin-modal-head">
+            <h2 className="kin-modal-title">Import Results</h2>
           </div>
 
-          <div className="px-6 py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                <div className="text-2xl font-bold text-green-700 dark:text-green-400">{importResult.imported}</div>
-                <div className="text-sm text-green-600 dark:text-green-500">Records Imported</div>
+          <div className="kin-modal-body">
+            <div className="grid-2">
+              <div className="card" style={{ padding: 12 }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{importResult.imported}</div>
+                <div className="small muted">Records Imported</div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                <div className="text-2xl font-bold text-gray-600 dark:text-gray-300">{importResult.skipped}</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Rows Skipped</div>
+              <div className="card" style={{ padding: 12 }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink-2)' }}>{importResult.skipped}</div>
+                <div className="small muted">Rows Skipped</div>
               </div>
             </div>
 
             {importResult.unmatched.length > 0 && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-2">
-                  Unlinked Employees ({importResult.unmatched.length})
-                </h3>
-                <div className="max-h-32 overflow-y-auto space-y-1">
+              <div className="kin-alert warn">
+                <div className="kin-alert-title">Unlinked Employees ({importResult.unmatched.length})</div>
+                <div className="vstack" style={{ gap: 2, marginTop: 6, maxHeight: 128, overflowY: 'auto' }}>
                   {importResult.unmatched.map(name => (
-                    <div key={name} className="text-sm text-yellow-900 dark:text-yellow-200">{name}</div>
+                    <div key={name} className="small">{name}</div>
                   ))}
                 </div>
               </div>
             )}
 
             {hasErrors && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
-                  Errors ({importResult.errors.length})
-                </h3>
-                <div className="max-h-32 overflow-y-auto space-y-1">
+              <div className="kin-alert danger">
+                <div className="kin-alert-title">Errors ({importResult.errors.length})</div>
+                <div className="vstack" style={{ gap: 2, marginTop: 6, maxHeight: 128, overflowY: 'auto' }}>
                   {importResult.errors.map((err, i) => (
-                    <div key={i} className="text-sm text-red-700 dark:text-red-400">{err}</div>
+                    <div key={i} className="small">{err}</div>
                   ))}
                 </div>
               </div>
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+          <div className="kin-modal-foot">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="btn primary"
             >
               Done
             </button>

@@ -70,9 +70,9 @@ export default function WorldMap({ data }: WorldMapProps) {
 
   const getColor = (geoName: string): string => {
     const count = countryMap.get(geoName);
-    if (!count) return '#e2e8f0';
+    if (!count) return 'var(--surface-2)';
     const intensity = Math.max(0.2, count / maxCount);
-    return `rgba(59, 130, 246, ${intensity})`;
+    return `oklch(from var(--accent) l c h / ${intensity})`;
   };
 
   const handleCountryClick = (geoName: string) => {
@@ -84,9 +84,9 @@ export default function WorldMap({ data }: WorldMapProps) {
 
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
-        <p className="text-sm">No country of origin data available.</p>
-        <p className="text-xs mt-1">Add country information to employee records to see the map.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '32px 0', color: 'var(--ink-3)' }}>
+        <p style={{ fontSize: 13, margin: 0 }}>No country of origin data available.</p>
+        <p style={{ fontSize: 12, marginTop: 4, color: 'var(--ink-4)' }}>Add country information to employee records to see the map.</p>
       </div>
     );
   }
@@ -113,7 +113,7 @@ export default function WorldMap({ data }: WorldMapProps) {
                     key={geo.rpiKey}
                     geography={geo}
                     fill={getColor(geoName)}
-                    stroke="#cbd5e1"
+                    stroke="var(--line)"
                     strokeWidth={0.5}
                     onMouseEnter={(e) => {
                       if (count > 0) {
@@ -126,7 +126,7 @@ export default function WorldMap({ data }: WorldMapProps) {
                     }}
                     style={{
                       default: { outline: 'none', pointerEvents: count > 0 ? 'auto' : 'none' },
-                      hover: { fill: count > 0 ? '#2563eb' : '#e2e8f0', outline: 'none', cursor: count > 0 ? 'pointer' : 'default' },
+                      hover: { fill: count > 0 ? 'var(--accent)' : 'var(--surface-2)', outline: 'none', cursor: count > 0 ? 'pointer' : 'default' },
                       pressed: { outline: 'none' },
                     }}
                   />
@@ -138,26 +138,56 @@ export default function WorldMap({ data }: WorldMapProps) {
 
       {tooltip && (
         <div
-          className="fixed z-50 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 pointer-events-none shadow-lg"
-          style={{ left: tooltip.x + 12, top: tooltip.y - 30 }}
+          style={{
+            position: 'fixed',
+            zIndex: 50,
+            left: tooltip.x + 12,
+            top: tooltip.y - 30,
+            pointerEvents: 'none',
+            background: 'var(--surface)',
+            color: 'var(--ink)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: 'var(--shadow-lg)',
+            padding: '6px 10px',
+            fontSize: 12,
+            fontFamily: 'var(--sans)',
+          }}
         >
-          <span className="font-semibold">{tooltip.name}</span>: {tooltip.count} employee{tooltip.count !== 1 ? 's' : ''}
+          <span style={{ fontWeight: 600 }}>{tooltip.name}</span>
+          <span style={{ color: 'var(--ink-2)' }}>: {tooltip.count} employee{tooltip.count !== 1 ? 's' : ''}</span>
         </div>
       )}
 
       {/* Legend */}
-      <div className="mt-2 flex flex-wrap gap-3 justify-center">
+      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
         {Array.from(countryMap.entries())
           .sort((a, b) => b[1] - a[1])
           .map(([country, count]) => (
             <button
               key={country}
               onClick={() => handleCountryClick(country)}
-              className="text-xs text-gray-600 hover:text-blue-600 transition-colors cursor-pointer"
+              style={{
+                fontSize: 12,
+                color: 'var(--ink-2)',
+                background: 'none',
+                border: 0,
+                padding: 0,
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent-ink)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-2)')}
             >
               <span
-                className="inline-block w-3 h-3 rounded-sm mr-1 align-middle"
-                style={{ backgroundColor: `rgba(59, 130, 246, ${Math.max(0.2, count / maxCount)})` }}
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  height: 12,
+                  borderRadius: 3,
+                  marginRight: 4,
+                  verticalAlign: 'middle',
+                  background: `oklch(from var(--accent) l c h / ${Math.max(0.2, count / maxCount)})`,
+                }}
               />
               {country}: {count}
             </button>

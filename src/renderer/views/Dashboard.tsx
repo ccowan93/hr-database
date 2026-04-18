@@ -6,7 +6,6 @@ import {
 } from 'recharts';
 import { api } from '../api';
 import type { DashboardStats, BirthdayAlert, AnniversaryAlert } from '../types/employee';
-import MetricCard from '../components/MetricCard';
 import ChartCard from '../components/ChartCard';
 import WorldMap from '../components/WorldMap';
 
@@ -202,52 +201,50 @@ export default function Dashboard() {
       case 'alerts':
         if (birthdays.length === 0 && anniversaries.length === 0) return null;
         return (
-          <div className={birthdays.length > 0 && anniversaries.length > 0 ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'grid grid-cols-1 gap-4'}>
+          <div className={birthdays.length > 0 && anniversaries.length > 0 ? 'grid-2' : ''} style={birthdays.length > 0 && anniversaries.length > 0 ? { gridTemplateColumns: '1fr 1fr' } : undefined}>
             {birthdays.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide mb-3 flex items-center gap-2">
-                  <span className="text-lg">🎂</span> Upcoming Birthdays
-                </h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {birthdays.map(b => (
-                    <div key={b.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                      <div>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{b.employee_name}</span>
-                        <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">{b.current_department}</span>
+              <div className="section-card">
+                <div className="section-head">
+                  <div className="section-title">Upcoming Birthdays</div>
+                  <span className="badge">{birthdays.length}</span>
+                </div>
+                <div className="section-body" style={{ maxHeight: 220, overflowY: 'auto', padding: '10px 20px 14px' }}>
+                  <div className="kv-list">
+                    {birthdays.map(b => (
+                      <div key={b.id} className="flex-between" style={{ fontSize: 13 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontWeight: 500 }}>{b.employee_name}</span>
+                          <span className="small muted" style={{ marginLeft: 8 }}>{b.current_department}</span>
+                        </div>
+                        <span className={`badge ${b.days_until === 0 ? 'success' : b.days_until <= 7 ? 'warn' : ''}`}>
+                          {b.days_until === 0 ? 'Today' : b.days_until === 1 ? 'Tomorrow' : `${b.days_until} days`}
+                        </span>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        b.days_until === 0 ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300'
-                        : b.days_until <= 7 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {b.days_until === 0 ? 'Today!' : b.days_until === 1 ? 'Tomorrow' : `${b.days_until} days`}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
             {anniversaries.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide mb-3 flex items-center gap-2">
-                  <span className="text-lg">🎉</span> Upcoming Work Anniversaries
-                </h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {anniversaries.map(a => (
-                    <div key={a.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                      <div>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{a.employee_name}</span>
-                        <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">{a.next_years} years</span>
+              <div className="section-card">
+                <div className="section-head">
+                  <div className="section-title">Upcoming Work Anniversaries</div>
+                  <span className="badge">{anniversaries.length}</span>
+                </div>
+                <div className="section-body" style={{ maxHeight: 220, overflowY: 'auto', padding: '10px 20px 14px' }}>
+                  <div className="kv-list">
+                    {anniversaries.map(a => (
+                      <div key={a.id} className="flex-between" style={{ fontSize: 13 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontWeight: 500 }}>{a.employee_name}</span>
+                          <span className="small muted" style={{ marginLeft: 8 }}>{a.next_years} years</span>
+                        </div>
+                        <span className={`badge ${a.days_until === 0 ? 'success' : a.days_until <= 7 ? 'warn' : ''}`}>
+                          {a.days_until === 0 ? 'Today' : a.days_until === 1 ? 'Tomorrow' : `${a.days_until} days`}
+                        </span>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        a.days_until === 0 ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300'
-                        : a.days_until <= 7 ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {a.days_until === 0 ? 'Today!' : a.days_until === 1 ? 'Tomorrow' : `${a.days_until} days`}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -256,48 +253,66 @@ export default function Dashboard() {
 
       case 'metrics':
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard title="Total Headcount" value={stats.totalHeadcount} color="blue" />
-            <MetricCard title="Avg Tenure" value={`${stats.avgTenure} yrs`} color="green" />
-            <MetricCard title="Avg Pay Rate" value={`$${stats.avgPay.toFixed(2)}`} color="purple" />
-            <MetricCard title="Departments" value={stats.departmentCount} color="amber" />
+          <div className="stat-grid">
+            <div className="stat">
+              <div className="stat-label">Total Headcount</div>
+              <div className="stat-value">{stats.totalHeadcount}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Avg Tenure</div>
+              <div className="stat-value">{stats.avgTenure} <span className="small muted" style={{ fontSize: 13, fontWeight: 500 }}>yrs</span></div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Avg Pay Rate</div>
+              <div className="stat-value">${stats.avgPay.toFixed(2)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Departments</div>
+              <div className="stat-value">{stats.departmentCount}</div>
+            </div>
           </div>
         );
 
       case 'payroll':
         return (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Payroll Summary by Department</h3>
-              <div className="flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-300">
-                <p>
-                  Total Payroll: <span className="text-lg font-bold text-blue-600 dark:text-blue-400">${stats.totalPayroll.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">/hr</span>
-                </p>
-                <p>
-                  Est. Weekly: <span className="text-lg font-bold text-green-600 dark:text-green-400">${(stats.totalPayroll * 40).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </p>
+          <div className="section-card">
+            <div className="section-head">
+              <div className="section-title">Payroll Summary by Department</div>
+              <div className="hstack" style={{ gap: 18 }}>
+                <div>
+                  <span className="small muted">Total Payroll: </span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent-ink)' }}>
+                    ${stats.totalPayroll.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="small muted">/hr</span>
+                </div>
+                <div>
+                  <span className="small muted">Est. Weekly: </span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>
+                    ${(stats.totalPayroll * 40).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="section-body" style={{ padding: 0, overflowX: 'auto' }}>
+              <table className="kin-table">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Department</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Headcount</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Avg Pay</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Total Payroll</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">% of Total</th>
+                  <tr>
+                    <th>Department</th>
+                    <th style={{ textAlign: 'right' }}>Headcount</th>
+                    <th style={{ textAlign: 'right' }}>Avg Pay</th>
+                    <th style={{ textAlign: 'right' }}>Total Payroll</th>
+                    <th style={{ textAlign: 'right' }}>% of Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.payrollByDept.map((d: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="py-2 px-3 text-gray-800 dark:text-gray-200 font-medium">{d.department}</td>
-                      <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">{d.headcount}</td>
-                      <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">${Number(d.avg_pay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="py-2 px-3 text-right text-gray-800 dark:text-gray-200 font-semibold">${Number(d.total_payroll).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="py-2 px-3 text-right text-gray-500 dark:text-gray-400">{stats.totalPayroll > 0 ? ((Number(d.total_payroll) / stats.totalPayroll) * 100).toFixed(1) : 0}%</td>
+                    <tr key={i}>
+                      <td style={{ fontWeight: 500 }}>{d.department}</td>
+                      <td style={{ textAlign: 'right' }}>{d.headcount}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>${Number(d.avg_pay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>${Number(d.total_payroll).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="muted" style={{ textAlign: 'right' }}>{stats.totalPayroll > 0 ? ((Number(d.total_payroll) / stats.totalPayroll) * 100).toFixed(1) : 0}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -521,30 +536,26 @@ export default function Dashboard() {
       case 'supervisor-ratio':
         return (
           <ChartCard title="Supervisor-to-Employee Ratio by Department">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div style={{ overflowX: 'auto' }}>
+              <table className="kin-table">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Department</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Supervisors</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Employees</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Total</th>
-                    <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Ratio (Emp:Sup)</th>
+                  <tr>
+                    <th>Department</th>
+                    <th style={{ textAlign: 'right' }}>Supervisors</th>
+                    <th style={{ textAlign: 'right' }}>Employees</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'right' }}>Ratio (Emp:Sup)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {supervisorRatio.map((d: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="py-2 px-3 text-gray-800 dark:text-gray-200 font-medium">{d.department}</td>
-                      <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400 font-semibold">{d.supervisors}</td>
-                      <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">{d.employees}</td>
-                      <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">{d.total}</td>
-                      <td className="py-2 px-3 text-right">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          d.ratio && d.ratio > 10 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                          : d.ratio && d.ratio > 6 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                          : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                        }`}>
+                    <tr key={i}>
+                      <td style={{ fontWeight: 500 }}>{d.department}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600, color: 'var(--warn)' }}>{d.supervisors}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{d.employees}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{d.total}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className={`badge ${d.ratio && d.ratio > 10 ? 'danger' : d.ratio && d.ratio > 6 ? 'warn' : 'success'}`}>
                           {d.ratio ? `${d.ratio}:1` : 'No supervisor'}
                         </span>
                       </td>
@@ -577,7 +588,7 @@ export default function Dashboard() {
         return (
           <ChartCard title="Department Transfer Activity">
             {transfers.filter((d: any) => d.transferred > 0).length === 0 ? (
-              <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-8">No department transfers recorded</p>
+              <p className="small muted" style={{ textAlign: 'center', padding: '32px 0' }}>No department transfers recorded</p>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={transfers.filter((d: any) => d.transferred > 0)} margin={{ top: 5, right: 20, bottom: 60, left: 0 }}>
@@ -608,7 +619,7 @@ export default function Dashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div className="flex justify-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="hstack small muted" style={{ justifyContent: 'center', gap: 16, marginTop: 8 }}>
               {retention.map((r: any) => (
                 <span key={r.milestone}>{r.milestone}: {r.retained}/{r.total} retained</span>
               ))}
@@ -616,41 +627,41 @@ export default function Dashboard() {
           </ChartCard>
         );
 
-      case 'overdue-raise':
+      case 'overdue-raise': {
         const overdue = raiseData.filter((e: any) => e.days_since_raise > 365);
         return (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide mb-4">
-              Employees Overdue for Raise (12+ Months)
-            </h3>
+          <div className="section-card">
+            <div className="section-head">
+              <div className="section-title">Employees Overdue for Raise (12+ Months)</div>
+              {overdue.length > 0 && <span className="badge warn">{overdue.length}</span>}
+            </div>
             {overdue.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500">No employees overdue for a raise.</p>
+              <div className="section-body">
+                <p className="small muted">No employees overdue for a raise.</p>
+              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="section-body" style={{ padding: 0, overflowX: 'auto' }}>
+                <table className="kin-table">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Employee</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Department</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Position</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Current Pay</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Last Raise</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Days Since</th>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Department</th>
+                      <th>Position</th>
+                      <th style={{ textAlign: 'right' }}>Current Pay</th>
+                      <th style={{ textAlign: 'right' }}>Last Raise</th>
+                      <th style={{ textAlign: 'right' }}>Days Since</th>
                     </tr>
                   </thead>
                   <tbody>
                     {overdue.slice(0, 20).map((e: any) => (
-                      <tr key={e.id} className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="py-2 px-3 text-gray-800 dark:text-gray-200 font-medium">{e.employee_name}</td>
-                        <td className="py-2 px-3 text-gray-600 dark:text-gray-300">{e.current_department}</td>
-                        <td className="py-2 px-3 text-gray-600 dark:text-gray-300">{e.current_position}</td>
-                        <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">${Number(e.current_pay_rate).toFixed(2)}</td>
-                        <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">{e.date_last_raise}</td>
-                        <td className="py-2 px-3 text-right">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            e.days_since_raise > 730 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                          }`}>
+                      <tr key={e.id}>
+                        <td style={{ fontWeight: 500 }}>{e.employee_name}</td>
+                        <td>{e.current_department}</td>
+                        <td>{e.current_position}</td>
+                        <td className="mono" style={{ textAlign: 'right' }}>${Number(e.current_pay_rate).toFixed(2)}</td>
+                        <td className="mono" style={{ textAlign: 'right' }}>{e.date_last_raise}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={`badge ${e.days_since_raise > 730 ? 'danger' : 'warn'}`}>
                             {Math.round(e.days_since_raise / 30)} months
                           </span>
                         </td>
@@ -662,6 +673,7 @@ export default function Dashboard() {
             )}
           </div>
         );
+      }
 
       default:
         return null;
@@ -684,128 +696,140 @@ export default function Dashboard() {
   const visibleWidgets = layout.order.filter(id => isVisible(id));
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h2>
-        <div className="flex items-center gap-2">
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">Organization overview and key metrics</p>
+        </div>
+        <div className="hstack">
           <button
             onClick={() => setShowCustomize(!showCustomize)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-              showCustomize
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
+            className={`btn ${showCustomize ? 'primary' : ''}`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
             </svg>
             Customize
           </button>
-          <button
-            onClick={handleExportPdf}
-            disabled={exportingPdf}
-            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-          >
-            {exportingPdf ? 'Exporting...' : 'Export PDF'}
+          <button onClick={handleExportPdf} disabled={exportingPdf} className="btn">
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
           </button>
         </div>
       </div>
 
-      {/* Backup Warning */}
       {backupEnabled === false && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-center gap-3">
-          <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <div className="banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 18, height: 18, flexShrink: 0 }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
           </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Backups Not Configured</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">Set up local auto-backup in Settings to protect your data.</p>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 500, fontSize: 13 }}>Backups not configured</div>
+            <div className="small muted">Set up local auto-backup in Settings to protect your data.</div>
           </div>
-          <Link to="/settings" className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline whitespace-nowrap">Go to Settings →</Link>
+          <Link to="/settings" className="small" style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>Go to Settings →</Link>
         </div>
       )}
 
-      {/* Customize Panel */}
       {showCustomize && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide">Customize Dashboard</h3>
-            <div className="flex items-center gap-2">
-              <button onClick={resetLayout} className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-                Reset to Default
-              </button>
-              <button onClick={() => setShowCustomize(false)} className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Done
-              </button>
+        <div className="section-card">
+          <div className="section-head">
+            <div className="section-title">Customize dashboard</div>
+            <div className="hstack">
+              <button onClick={resetLayout} className="btn">Reset to default</button>
+              <button onClick={() => setShowCustomize(false)} className="btn primary">Done</button>
             </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Toggle widgets on/off and drag to reorder. Changes save automatically.</p>
-          <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {layout.order.map((id, idx) => {
-              const widget = ALL_WIDGETS.find(w => w.id === id);
-              if (!widget) return null;
-              const visible = isVisible(id);
-              return (
-                <div
-                  key={id}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing ${
-                    dragOverIdx === idx ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-600' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent'
-                  }`}
-                >
-                  {/* Drag handle */}
-                  <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
-                  </svg>
-
-                  {/* Toggle */}
-                  <button
-                    onClick={() => toggleWidget(id)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full flex-shrink-0 transition-colors ${
-                      visible ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
+          <div className="section-body">
+            <p className="small muted" style={{ marginBottom: 10 }}>Toggle widgets on/off and drag to reorder. Changes save automatically.</p>
+            <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {layout.order.map((id, idx) => {
+                const widget = ALL_WIDGETS.find(w => w.id === id);
+                if (!widget) return null;
+                const visible = isVisible(id);
+                return (
+                  <div
+                    key={id}
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDragEnd={handleDragEnd}
+                    className="hstack"
+                    style={{
+                      gap: 12,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      cursor: 'grab',
+                      border: '1px solid',
+                      borderColor: dragOverIdx === idx ? 'var(--accent)' : 'transparent',
+                      background: dragOverIdx === idx ? 'var(--accent-soft)' : 'transparent',
+                      transition: 'background 120ms, border-color 120ms',
+                    }}
                   >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      visible ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                    }`} />
-                  </button>
+                    <svg style={{ width: 14, height: 14, color: 'var(--ink-3)', flexShrink: 0 }} fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                    </svg>
 
-                  {/* Label */}
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-sm font-medium ${visible ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                      {widget.label}
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">{widget.category}</span>
-                  </div>
+                    <button
+                      onClick={() => toggleWidget(id)}
+                      style={{
+                        position: 'relative',
+                        width: 34,
+                        height: 18,
+                        borderRadius: 99,
+                        border: 'none',
+                        padding: 0,
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                        background: visible ? 'var(--accent)' : 'var(--line-strong)',
+                        transition: 'background 120ms',
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute',
+                        top: 2,
+                        left: visible ? 18 : 2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 99,
+                        background: '#fff',
+                        transition: 'left 140ms',
+                      }} />
+                    </button>
 
-                  {/* Move buttons */}
-                  <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <button
-                      onClick={() => moveWidget(id, -1)}
-                      disabled={idx === 0}
-                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => moveWidget(id, 1)}
-                      disabled={idx === layout.order.length - 1}
-                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: visible ? 'var(--ink)' : 'var(--ink-3)' }}>
+                        {widget.label}
+                      </span>
+                      <span className="small muted" style={{ marginLeft: 8 }}>{widget.category}</span>
+                    </div>
+
+                    <div className="hstack" style={{ gap: 2, flexShrink: 0 }}>
+                      <button
+                        onClick={() => moveWidget(id, -1)}
+                        disabled={idx === 0}
+                        className="icon-btn"
+                        style={{ opacity: idx === 0 ? 0.3 : 1 }}
+                      >
+                        <svg style={{ width: 14, height: 14 }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => moveWidget(id, 1)}
+                        disabled={idx === layout.order.length - 1}
+                        className="icon-btn"
+                        style={{ opacity: idx === layout.order.length - 1 ? 0.3 : 1 }}
+                      >
+                        <svg style={{ width: 14, height: 14 }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

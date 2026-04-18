@@ -18,26 +18,26 @@ interface DayData {
   time_off_type?: string | null;
   time_off_entries: TimeOffEntry[];
   records: any[];
-  flags?: string[]; // attendance flags: 'tardy', 'absent', 'left_early', 'long_lunch', 'partial_absence'
+  flags?: string[];
 }
 
 interface CalendarGridProps {
   year: number;
-  month: number; // 0-indexed
-  dayDataMap: Map<string, DayData>; // key: "YYYY-MM-DD"
+  month: number;
+  dayDataMap: Map<string, DayData>;
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
-  showFlags?: boolean; // Whether to show attendance flag indicators
+  showFlags?: boolean;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const FLAG_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  tardy: { label: 'Tardy', color: 'text-amber-600 dark:text-amber-400', icon: 'T' },
-  absent: { label: 'Absent', color: 'text-red-600 dark:text-red-400', icon: 'A' },
-  left_early: { label: 'Left Early', color: 'text-orange-600 dark:text-orange-400', icon: 'E' },
-  long_lunch: { label: 'Long Lunch', color: 'text-purple-600 dark:text-purple-400', icon: 'L' },
-  partial_absence: { label: 'Partial', color: 'text-pink-600 dark:text-pink-400', icon: 'P' },
+  tardy: { label: 'Tardy', color: 'var(--warn)', icon: 'T' },
+  absent: { label: 'Absent', color: 'var(--danger)', icon: 'A' },
+  left_early: { label: 'Left Early', color: 'oklch(0.65 0.15 55)', icon: 'E' },
+  long_lunch: { label: 'Long Lunch', color: 'oklch(0.6 0.15 310)', icon: 'L' },
+  partial_absence: { label: 'Partial', color: 'oklch(0.65 0.15 0)', icon: 'P' },
 };
 
 function getDaysInMonth(year: number, month: number): number {
@@ -63,17 +63,70 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
   const today = new Date();
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
 
+  const cellBgFor = (
+    data: DayData | undefined,
+    flags: string[],
+  ): string | undefined => {
+    if (!data && !flags.includes('absent')) return undefined;
+    if (data?.has_time_off) return 'color-mix(in oklch, var(--info) 10%, transparent)';
+    if (flags.includes('absent')) return 'color-mix(in oklch, var(--danger) 10%, transparent)';
+    if (data?.missing_punch) return 'color-mix(in oklch, var(--warn) 12%, transparent)';
+    if (data?.present) return 'color-mix(in oklch, var(--accent) 10%, transparent)';
+    return undefined;
+  };
+
+  const dotColorFor = (data: DayData | undefined, flags: string[]): string | undefined => {
+    if (!data && !flags.includes('absent')) return undefined;
+    if (data?.has_time_off) return 'var(--info)';
+    if (flags.includes('absent')) return 'var(--danger)';
+    if (data?.missing_punch) return 'var(--warn)';
+    if (data?.present) return 'var(--accent)';
+    return undefined;
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="grid grid-cols-7">
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid color-mix(in oklch, var(--accent) 28%, var(--line))',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+        boxShadow: '0 0 0 3px color-mix(in oklch, var(--accent) 8%, transparent)',
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {WEEKDAYS.map(day => (
-          <div key={day} className="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <div
+            key={day}
+            style={{
+              padding: '10px 8px',
+              textAlign: 'center',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--accent-ink)',
+              background: 'var(--accent-soft)',
+              borderBottom: '1px solid color-mix(in oklch, var(--accent) 22%, var(--line))',
+            }}
+          >
             {day}
           </div>
         ))}
         {cells.map((day, idx) => {
           if (day === null) {
-            return <div key={`empty-${idx}`} className="h-24 border-b border-r border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20" />;
+            return (
+              <div
+                key={`empty-${idx}`}
+                style={{
+                  height: 96,
+                  borderBottom: '1px solid var(--line)',
+                  borderRight: '1px solid var(--line)',
+                  background: 'var(--surface-2)',
+                  opacity: 0.5,
+                }}
+              />
+            );
           }
 
           const dateKey = formatDateKey(year, month, day);
@@ -83,58 +136,54 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
           const isWeekend = (firstDay + day - 1) % 7 === 0 || (firstDay + day - 1) % 7 === 6;
           const flags = data?.flags || [];
 
-          let statusColor = '';
-          let statusDot = '';
-          if (data) {
-            if (data.has_time_off) {
-              statusColor = 'bg-blue-50 dark:bg-blue-900/20';
-              statusDot = 'bg-blue-500';
-            } else if (flags.includes('absent')) {
-              statusColor = 'bg-red-50 dark:bg-red-900/20';
-              statusDot = 'bg-red-500';
-            } else if (data.missing_punch) {
-              statusColor = 'bg-yellow-50 dark:bg-yellow-900/20';
-              statusDot = 'bg-yellow-500';
-            } else if (data.present) {
-              statusColor = 'bg-green-50 dark:bg-green-900/20';
-              statusDot = 'bg-emerald-500';
-            }
-          } else if (showFlags && flags.length === 0 && !isWeekend) {
-            // No data and no flags for a weekday
-            statusColor = '';
-            statusDot = '';
-          }
-
-          // For absent-only flag days with no attendance data
-          if (!data && flags.includes('absent')) {
-            statusColor = 'bg-red-50 dark:bg-red-900/20';
-            statusDot = 'bg-red-500';
-          }
+          const cellBg = cellBgFor(data, flags);
+          const dot = dotColorFor(data, flags);
 
           return (
             <div
               key={dateKey}
               onClick={() => onSelectDate(dateKey)}
-              className={`h-24 p-1.5 border-b border-r border-gray-100 dark:border-gray-700/50 cursor-pointer transition-colors
-                ${statusColor}
-                ${isSelected ? 'ring-2 ring-blue-500 ring-inset' : ''}
-                ${!statusColor && !isWeekend ? 'hover:bg-gray-50 dark:hover:bg-gray-700/30' : 'hover:opacity-80'}
-              `}
+              style={{
+                height: 96,
+                padding: 6,
+                borderBottom: '1px solid var(--line)',
+                borderRight: '1px solid var(--line)',
+                cursor: 'pointer',
+                transition: 'background 120ms',
+                background: cellBg,
+                boxShadow: isSelected ? 'inset 0 0 0 2px var(--accent)' : undefined,
+              }}
+              onMouseEnter={(e) => {
+                if (!cellBg) e.currentTarget.style.background = 'var(--surface-2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = cellBg || '';
+              }}
             >
-              <div className="flex items-center justify-between">
-                <span className={`text-sm font-medium
-                  ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : ''}
-                  ${isWeekend && !isToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}
-                `}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: isToday ? '#fff' : isWeekend ? 'var(--ink-4)' : 'var(--ink-2)',
+                    background: isToday ? 'var(--accent)' : undefined,
+                    width: isToday ? 22 : undefined,
+                    height: isToday ? 22 : undefined,
+                    borderRadius: isToday ? '50%' : undefined,
+                    display: isToday ? 'flex' : undefined,
+                    alignItems: isToday ? 'center' : undefined,
+                    justifyContent: isToday ? 'center' : undefined,
+                  }}
+                >
                   {day}
                 </span>
-                <div className="flex items-center gap-0.5">
-                  {statusDot && <span className={`w-2 h-2 rounded-full ${statusDot}`} />}
-                </div>
+                {dot && (
+                  <span style={{ width: 7, height: 7, borderRadius: 99, background: dot }} />
+                )}
               </div>
-              {/* Attendance flags */}
+
               {showFlags && flags.length > 0 && (
-                <div className="flex flex-wrap gap-0.5 mt-0.5">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
                   {flags.filter(f => f !== 'absent').map(flag => {
                     const cfg = FLAG_CONFIG[flag];
                     if (!cfg) return null;
@@ -142,7 +191,14 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
                       <span
                         key={flag}
                         title={cfg.label}
-                        className={`text-[9px] font-bold px-1 rounded ${cfg.color} bg-white/60 dark:bg-gray-900/40`}
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '0 4px',
+                          borderRadius: 3,
+                          color: cfg.color,
+                          background: 'color-mix(in oklch, var(--surface) 70%, transparent)',
+                        }}
                       >
                         {cfg.icon}
                       </span>
@@ -150,33 +206,34 @@ export default function CalendarGrid({ year, month, dayDataMap, selectedDate, on
                   })}
                 </div>
               )}
+
               {data && (
-                <div className="mt-0.5 space-y-0.5">
+                <div style={{ marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {data.punch_in && (
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                    <div style={{ fontSize: 10, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       In: {data.punch_in}
                     </div>
                   )}
                   {data.punch_out && (
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                    <div style={{ fontSize: 10, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       Out: {data.punch_out}
                     </div>
                   )}
                   {(data.reg_hours > 0 || data.ot_hours > 0) && (
-                    <div className="text-[10px] font-medium text-gray-600 dark:text-gray-300">
+                    <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-2)' }}>
                       {data.reg_hours > 0 && `${data.reg_hours.toFixed(1)}h`}
-                      {data.ot_hours > 0 && <span className="text-orange-500 ml-1">+{data.ot_hours.toFixed(1)} OT</span>}
+                      {data.ot_hours > 0 && <span style={{ color: 'var(--warn)', marginLeft: 4 }}>+{data.ot_hours.toFixed(1)} OT</span>}
                     </div>
                   )}
                   {data.has_time_off && data.time_off_entries.length > 0 && (
-                    <div className="space-y-0.5">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {data.time_off_entries.slice(0, 2).map((entry, i) => (
-                        <div key={i} className="text-[10px] font-medium text-blue-600 dark:text-blue-400 truncate">
+                        <div key={i} style={{ fontSize: 10, fontWeight: 500, color: 'var(--info)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {entry.employee_name.split(' ')[0]}: {entry.request_type.charAt(0).toUpperCase() + entry.request_type.slice(1).replace('_', ' ')}
                         </div>
                       ))}
                       {data.time_off_entries.length > 2 && (
-                        <div className="text-[10px] text-blue-500 dark:text-blue-300">
+                        <div style={{ fontSize: 10, color: 'var(--info)', opacity: 0.8 }}>
                           +{data.time_off_entries.length - 2} more
                         </div>
                       )}

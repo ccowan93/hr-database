@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import { ShieldCheck, AlertTriangle, Plus, ArrowLeft, Trash2, Clock, FileText, CheckCircle2, XCircle, Search } from 'lucide-react';
+import ComboSelect from '../components/ComboSelect';
+import FmlaCaseForm from '../components/FmlaCaseForm';
+import { ShieldCheck, AlertTriangle, Plus, ArrowLeft, Trash2, CheckCircle2 } from 'lucide-react';
 
 /* ────────────────────── Types ────────────────────── */
 
@@ -53,14 +55,6 @@ interface FmlaConfig {
   eligibility_hours: number;
 }
 
-interface EligibilityResult {
-  eligible: boolean;
-  employeeName: string;
-  monthsEmployed: number;
-  hoursWorked: number;
-  reasons: string[];
-}
-
 /* ────────────────────── Constants ────────────────────── */
 
 const FMLA_REASONS: { value: string; label: string }[] = [
@@ -87,17 +81,17 @@ const CERT_STATUSES: { value: string; label: string }[] = [
   { value: 'denied', label: 'Denied' },
 ];
 
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  pending_designation: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  exhausted: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  closed: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+const STATUS_BADGE: Record<string, string> = {
+  active: 'badge success',
+  pending_designation: 'badge warn',
+  exhausted: 'badge danger',
+  closed: 'badge',
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'border-red-500 bg-red-50 dark:bg-red-900/20',
-  warning: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20',
-  info: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20',
+  critical: 'kin-alert danger',
+  warning: 'kin-alert warn',
+  info: 'kin-alert info',
 };
 
 function getReasonLabel(value: string): string {
@@ -163,12 +157,19 @@ export default function FmlaManager() {
 
   useEffect(() => { loadCases(); loadAlerts(); }, [loadCases, loadAlerts]);
 
-  const filteredCases = searchQuery
-    ? cases.filter(c =>
-        (c.employee_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        getReasonLabel(c.reason).toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : cases;
+  const filteredCases = cases
+    .filter(c => !searchQuery ||
+      (c.employee_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getReasonLabel(c.reason).toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .filter(c => !statusFilter || c.status === statusFilter);
+
+  const statCounts = {
+    total: cases.length,
+    active: cases.filter(c => c.status === 'active').length,
+    pending: cases.filter(c => c.status === 'pending_designation').length,
+    closed: cases.filter(c => c.status === 'closed' || c.status === 'exhausted').length,
+  };
 
   const handleCaseCreated = () => {
     setShowNewCaseForm(false);
@@ -198,154 +199,158 @@ export default function FmlaManager() {
     );
   }
 
-  /* ─── Render new case form ─── */
-  if (showNewCaseForm) {
-    return (
-      <NewCaseForm
-        onCancel={() => setShowNewCaseForm(false)}
-        onCreated={handleCaseCreated}
-      />
-    );
-  }
-
   /* ─── Main list view ─── */
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <ShieldCheck className="w-7 h-7 text-blue-600" />
-            FMLA Management
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Track Family and Medical Leave Act cases, episodes, and compliance
-          </p>
+          <h1 className="page-title">FMLA management</h1>
+          <p className="page-subtitle">Track Family and Medical Leave Act cases, episodes, and compliance</p>
         </div>
-        <button
-          onClick={() => setShowNewCaseForm(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          New Case
+        <button onClick={() => setShowNewCaseForm(true)} className="btn primary">
+          <Plus />
+          New case
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+      {tab === 'cases' && (
+        <div className="stat-grid">
+          <div className="stat">
+            <div className="stat-label">Total</div>
+            <div className="stat-value">{statCounts.total}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Active</div>
+            <div className="stat-value">{statCounts.active}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Pending</div>
+            <div className="stat-value">{statCounts.pending}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Closed</div>
+            <div className="stat-value">{statCounts.closed}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="tab-row">
         {([
-          { key: 'cases' as Tab, label: 'Cases', icon: FileText },
-          { key: 'alerts' as Tab, label: 'Alerts', icon: AlertTriangle, badge: alertCount },
-          { key: 'settings' as Tab, label: 'Settings', icon: Clock },
+          { key: 'cases' as Tab, label: 'Cases' },
+          { key: 'alerts' as Tab, label: 'Alerts', badge: alertCount },
+          { key: 'settings' as Tab, label: 'Settings' },
         ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === t.key
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <t.icon className="w-4 h-4" />
+          <button key={t.key} className="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
-            {t.badge ? (
-              <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-                {t.badge}
-              </span>
-            ) : null}
+            {t.badge ? <span className="badge danger" style={{ marginLeft: 6 }}>{t.badge}</span> : null}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === 'cases' && (
-        <div className="space-y-3">
-          {/* Filters */}
-          <div className="flex gap-3 items-center">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by employee or reason..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              />
+        <>
+          <div className="card" style={{ padding: 14, marginBottom: 18 }}>
+            <div className="grid-2">
+              <label className="field">
+                <span className="field-label">Search</span>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Employee or reason..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Status</span>
+                <ComboSelect
+                  value={statusFilter}
+                  options={[
+                    { value: 'pending_designation', label: 'Pending Designation' },
+                    { value: 'active', label: 'Active' },
+                    { value: 'exhausted', label: 'Exhausted' },
+                    { value: 'closed', label: 'Closed' },
+                  ]}
+                  onChange={setStatusFilter}
+                  includeNone={true}
+                  noneLabel="All statuses"
+                  searchable={false}
+                />
+              </label>
             </div>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending_designation">Pending Designation</option>
-              <option value="active">Active</option>
-              <option value="exhausted">Exhausted</option>
-              <option value="closed">Closed</option>
-            </select>
+            {(searchQuery || statusFilter) && (
+              <div className="hstack" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setSearchQuery(''); setStatusFilter(''); }}
+                  className="btn ghost"
+                  style={{ color: 'var(--danger)' }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Cases table */}
           {loading ? (
-            <div className="text-center py-12 text-gray-500">Loading...</div>
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <span className="muted">Loading…</span>
+            </div>
           ) : filteredCases.length === 0 ? (
-            <div className="text-center py-12">
-              <ShieldCheck className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">No FMLA cases found</p>
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <ShieldCheck style={{ width: 40, height: 40, margin: '0 auto 10px', color: 'var(--ink-4)' }} />
+              <p className="muted" style={{ margin: 0 }}>No FMLA cases found</p>
               <button
                 onClick={() => setShowNewCaseForm(true)}
-                className="mt-3 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                className="btn ghost"
+                style={{ marginTop: 10, color: 'var(--accent-ink)' }}
               >
                 Create a new case
               </button>
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className="kin-table">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Employee</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Reason</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Leave Type</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Hours Used</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Certification</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Start Date</th>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Reason</th>
+                    <th>Leave Type</th>
+                    <th>Status</th>
+                    <th>Hours Used</th>
+                    <th>Certification</th>
+                    <th>Start Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredCases.map(c => {
                     const pct = c.entitlement_hours > 0 ? (c.used_hours / c.entitlement_hours) * 100 : 0;
+                    const barColor = pct >= 80 ? 'var(--danger)' : pct >= 50 ? 'var(--warn)' : 'var(--accent)';
                     return (
                       <tr
                         key={c.id}
                         onClick={() => setSelectedCase(c)}
-                        className="border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer transition-colors"
+                        className="clickable"
                       >
-                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{c.employee_name || `Employee #${c.employee_id}`}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getReasonLabel(c.reason)}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getLeaveTypeLabel(c.leave_type)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[c.status] || STATUS_STYLES.closed}`}>
+                        <td style={{ fontWeight: 500 }}>{c.employee_name || `Employee #${c.employee_id}`}</td>
+                        <td>{getReasonLabel(c.reason)}</td>
+                        <td>{getLeaveTypeLabel(c.leave_type)}</td>
+                        <td>
+                          <span className={STATUS_BADGE[c.status] || 'badge'}>
                             {formatStatus(c.status)}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${pct >= 80 ? 'bg-red-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}
-                                style={{ width: `${Math.min(pct, 100)}%` }}
-                              />
+                        <td>
+                          <div className="hstack" style={{ gap: 8 }}>
+                            <div style={{ width: 80, height: 6, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--line)' }}>
+                              <div style={{ height: '100%', borderRadius: 99, background: barColor, width: `${Math.min(pct, 100)}%` }} />
                             </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            <span className="mono small muted" style={{ whiteSpace: 'nowrap' }}>
                               {c.used_hours}/{c.entitlement_hours}h
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">{getCertStatusLabel(c.cert_status)}</td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDate(c.start_date)}</td>
+                        <td className="small">{getCertStatusLabel(c.cert_status)}</td>
+                        <td className="muted">{formatDate(c.start_date)}</td>
                       </tr>
                     );
                   })}
@@ -353,7 +358,7 @@ export default function FmlaManager() {
               </table>
             </div>
           )}
-        </div>
+        </>
       )}
 
       {tab === 'alerts' && <AlertsPanel alerts={alerts} onOpenCase={(id) => {
@@ -363,6 +368,13 @@ export default function FmlaManager() {
       }} />}
 
       {tab === 'settings' && <SettingsPanel />}
+
+      {showNewCaseForm && (
+        <FmlaCaseForm
+          onSubmit={handleCaseCreated}
+          onCancel={() => setShowNewCaseForm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -372,41 +384,44 @@ export default function FmlaManager() {
 function AlertsPanel({ alerts, onOpenCase }: { alerts: FmlaAlert[]; onOpenCase: (id: number) => void }) {
   if (alerts.length === 0) {
     return (
-      <div className="text-center py-12">
-        <CheckCircle2 className="w-12 h-12 mx-auto text-green-400 mb-3" />
-        <p className="text-gray-500 dark:text-gray-400 font-medium">No active alerts</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">All FMLA cases are in good standing</p>
+      <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+        <CheckCircle2 style={{ width: 40, height: 40, margin: '0 auto 10px', color: 'var(--success)' }} />
+        <p className="muted" style={{ margin: 0, fontWeight: 500 }}>No active alerts</p>
+        <p className="small muted" style={{ marginTop: 4 }}>All FMLA cases are in good standing</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {alerts.map((alert, i) => (
-        <div
-          key={i}
-          className={`border-l-4 rounded-lg p-4 ${SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.info}`}
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                alert.severity === 'critical' ? 'text-red-500' :
-                alert.severity === 'warning' ? 'text-yellow-500' : 'text-blue-500'
-              }`} />
-              <div>
-                <p className="font-medium text-gray-900 dark:text-gray-100">{alert.employee_name}</p>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{alert.message}</p>
+    <div className="vstack" style={{ gap: 12 }}>
+      {alerts.map((alert, i) => {
+        const iconColor =
+          alert.severity === 'critical' ? 'var(--danger)' :
+          alert.severity === 'warning' ? 'var(--warn)' : 'var(--accent)';
+        return (
+          <div
+            key={i}
+            className={SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.info}
+          >
+            <div className="hstack" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div className="hstack" style={{ alignItems: 'flex-start', gap: 10 }}>
+                <AlertTriangle style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, color: iconColor }} />
+                <div>
+                  <p className="kin-alert-title" style={{ margin: 0, color: 'var(--ink)' }}>{alert.employee_name}</p>
+                  <p className="small" style={{ marginTop: 2, color: 'var(--ink-2)' }}>{alert.message}</p>
+                </div>
               </div>
+              <button
+                onClick={() => onOpenCase(alert.case_id)}
+                className="btn ghost"
+                style={{ padding: '4px 10px', color: 'var(--accent-ink)', whiteSpace: 'nowrap' }}
+              >
+                View Case
+              </button>
             </div>
-            <button
-              onClick={() => onOpenCase(alert.case_id)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
-            >
-              View Case
-            </button>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -435,310 +450,76 @@ function SettingsPanel() {
     setSaving(false);
   };
 
-  if (!config) return <div className="text-center py-8 text-gray-500">Loading...</div>;
+  if (!config) return <div className="card" style={{ padding: 40, textAlign: 'center' }}><span className="muted">Loading…</span></div>;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 max-w-2xl">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">FMLA Configuration</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Leave Year Calculation Method</label>
-          <select
+    <div className="card" style={{ padding: 18 }}>
+      <h2 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '0 0 14px' }}>FMLA Configuration</h2>
+      <div className="vstack" style={{ gap: 14 }}>
+        <label className="field">
+          <span className="field-label">Leave Year Calculation Method</span>
+          <ComboSelect
             value={config.leave_year_method}
-            onChange={e => setConfig({ ...config, leave_year_method: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          >
-            <option value="rolling_backward">Rolling Backward (12 months from current date)</option>
-            <option value="rolling_forward">Rolling Forward (12 months from first FMLA use)</option>
-            <option value="calendar_year">Calendar Year (Jan 1 - Dec 31)</option>
-            <option value="fixed_year">Fixed Year (custom start date)</option>
-          </select>
-          <p className="text-xs text-gray-400 mt-1">Determines how the 12-month FMLA leave year is calculated</p>
-        </div>
+            options={[
+              { value: 'rolling_backward', label: 'Rolling Backward (12 months from current date)' },
+              { value: 'rolling_forward', label: 'Rolling Forward (12 months from first FMLA use)' },
+              { value: 'calendar_year', label: 'Calendar Year (Jan 1 - Dec 31)' },
+              { value: 'fixed_year', label: 'Fixed Year (custom start date)' },
+            ]}
+            onChange={v => setConfig({ ...config, leave_year_method: v || 'rolling_backward' })}
+            includeNone={false}
+            searchable={false}
+          />
+          <p className="small muted" style={{ marginTop: 4 }}>Determines how the 12-month FMLA leave year is calculated</p>
+        </label>
 
         {config.leave_year_method === 'fixed_year' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fixed Year Start (MM-DD)</label>
+          <label className="field">
+            <span className="field-label">Fixed Year Start (MM-DD)</span>
             <input
               type="text"
               value={config.fixed_year_start}
               onChange={e => setConfig({ ...config, fixed_year_start: e.target.value })}
               placeholder="01-01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="input"
             />
-          </div>
+          </label>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Eligibility — Months Employed</label>
+        <div className="grid-2">
+          <label className="field">
+            <span className="field-label">Eligibility — Months Employed</span>
             <input
               type="number"
               value={config.eligibility_months}
               onChange={e => setConfig({ ...config, eligibility_months: parseInt(e.target.value) || 12 })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="input"
             />
-            <p className="text-xs text-gray-400 mt-1">Default: 12 months</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Eligibility — Hours Worked</label>
+            <p className="small muted" style={{ marginTop: 4 }}>Default: 12 months</p>
+          </label>
+          <label className="field">
+            <span className="field-label">Eligibility — Hours Worked</span>
             <input
               type="number"
               value={config.eligibility_hours}
               onChange={e => setConfig({ ...config, eligibility_hours: parseInt(e.target.value) || 1250 })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="input"
             />
-            <p className="text-xs text-gray-400 mt-1">Default: 1,250 hours</p>
-          </div>
+            <p className="small muted" style={{ marginTop: 4 }}>Default: 1,250 hours</p>
+          </label>
         </div>
 
-        <div className="pt-2">
+        <div className="hstack" style={{ gap: 10, paddingTop: 4, alignItems: 'center' }}>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            className="btn primary"
           >
-            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Settings'}
+            {saving ? 'Saving...' : 'Save Settings'}
           </button>
+          {saved && <span className="badge success">Saved!</span>}
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ────────────────────── New Case Form ────────────────────── */
-
-function NewCaseForm({ onCancel, onCreated }: { onCancel: () => void; onCreated: () => void }) {
-  const [employees, setEmployees] = useState<{ id: number; employee_name: string }[]>([]);
-  const [employeeId, setEmployeeId] = useState<number>(0);
-  const [reason, setReason] = useState('serious_health_condition');
-  const [familyMember, setFamilyMember] = useState('');
-  const [leaveType, setLeaveType] = useState('continuous');
-  const [startDate, setStartDate] = useState('');
-  const [expectedEndDate, setExpectedEndDate] = useState('');
-  const [entitlementHours, setEntitlementHours] = useState(480);
-  const [certDueDate, setCertDueDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [eligibility, setEligibility] = useState<EligibilityResult | null>(null);
-  const [checkingEligibility, setCheckingEligibility] = useState(false);
-  const [empSearch, setEmpSearch] = useState('');
-
-  useEffect(() => {
-    api.getAllEmployees({ status: 'active' }).then((emps: any[]) => {
-      setEmployees(emps.map(e => ({ id: e.id, employee_name: e.employee_name })));
-    });
-  }, []);
-
-  // Check eligibility when employee changes
-  useEffect(() => {
-    if (!employeeId) { setEligibility(null); return; }
-    setCheckingEligibility(true);
-    api.checkFmlaEligibility(employeeId)
-      .then(setEligibility)
-      .catch(() => setEligibility(null))
-      .finally(() => setCheckingEligibility(false));
-  }, [employeeId]);
-
-  const needsFamilyMember = ['family_care', 'military_caregiver'].includes(reason);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!employeeId || !startDate) return;
-    setSubmitting(true);
-    try {
-      await api.createFmlaCase({
-        employee_id: employeeId,
-        reason,
-        family_member: needsFamilyMember ? familyMember : null,
-        leave_type: leaveType,
-        start_date: startDate,
-        expected_end_date: expectedEndDate || null,
-        entitlement_hours: entitlementHours,
-        cert_due_date: certDueDate || null,
-        notes: notes || null,
-      });
-      onCreated();
-    } catch (err) {
-      console.error('Failed to create FMLA case:', err);
-      alert('Failed to create FMLA case');
-    }
-    setSubmitting(false);
-  };
-
-  const filteredEmployees = empSearch
-    ? employees.filter(e => e.employee_name.toLowerCase().includes(empSearch.toLowerCase()))
-    : employees;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onCancel} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5 text-gray-500" />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">New FMLA Case</h1>
-      </div>
-
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 max-w-3xl space-y-5">
-        {/* Employee Select */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee *</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={empSearch}
-              onChange={e => { setEmpSearch(e.target.value); }}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 mb-1"
-            />
-          </div>
-          <select
-            value={employeeId}
-            onChange={e => setEmployeeId(parseInt(e.target.value))}
-            size={5}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          >
-            <option value={0}>— Select Employee —</option>
-            {filteredEmployees.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Eligibility check */}
-        {employeeId > 0 && (
-          <div className={`p-3 rounded-lg text-sm ${
-            checkingEligibility ? 'bg-gray-100 dark:bg-gray-700 text-gray-500' :
-            eligibility?.eligible ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' :
-            'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-          }`}>
-            {checkingEligibility ? (
-              'Checking eligibility...'
-            ) : eligibility ? (
-              <div>
-                <div className="flex items-center gap-2 font-medium">
-                  {eligibility.eligible ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                  {eligibility.eligible ? 'Eligible for FMLA' : 'Not Eligible for FMLA'}
-                </div>
-                <div className="mt-1 text-xs space-y-0.5">
-                  <p>Months employed: {eligibility.monthsEmployed} (required: 12)</p>
-                  <p>Hours worked (12 mo): {eligibility.hoursWorked.toLocaleString()} (required: 1,250)</p>
-                  {!eligibility.eligible && eligibility.reasons.map((r, i) => (
-                    <p key={i} className="text-red-600 dark:text-red-400">{r}</p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason *</label>
-            <select
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              {FMLA_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Leave Type *</label>
-            <select
-              value={leaveType}
-              onChange={e => setLeaveType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {needsFamilyMember && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Family Member Name</label>
-            <input
-              type="text"
-              value={familyMember}
-              onChange={e => setFamilyMember(e.target.value)}
-              placeholder="Name and relationship"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date *</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expected End Date</label>
-            <input
-              type="date"
-              value={expectedEndDate}
-              onChange={e => setExpectedEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entitlement (hours)</label>
-            <input
-              type="number"
-              value={entitlementHours}
-              onChange={e => setEntitlementHours(parseInt(e.target.value) || 480)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
-            <p className="text-xs text-gray-400 mt-1">Standard: 480 hours (12 weeks)</p>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Certification Due Date</label>
-          <input
-            type="date"
-            value={certDueDate}
-            onChange={e => setCertDueDate(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          />
-          <p className="text-xs text-gray-400 mt-1">Typically 15 calendar days from designation</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          />
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting || !employeeId || !startDate}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            {submitting ? 'Creating...' : 'Create Case'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-5 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
     </div>
   );
 }
@@ -866,52 +647,60 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
     }
   };
 
+  const fieldLabelCss: React.CSSProperties = { color: 'var(--ink-3)' };
+  const fieldValueCss: React.CSSProperties = { fontWeight: 500, color: 'var(--ink)', margin: '2px 0 0' };
+
   return (
-    <div className="space-y-4">
+    <div className="page">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5 text-gray-500" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {caseData.employee_name || `Employee #${caseData.employee_id}`}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            FMLA Case #{caseData.id} &middot; {getReasonLabel(caseData.reason)}
-          </p>
+      <div className="page-head">
+        <div className="hstack" style={{ gap: 10, alignItems: 'center', flex: 1 }}>
+          <button onClick={onBack} className="icon-btn" aria-label="Back">
+            <ArrowLeft />
+          </button>
+          <div style={{ flex: 1 }}>
+            <h1 className="page-title">
+              {caseData.employee_name || `Employee #${caseData.employee_id}`}
+            </h1>
+            <p className="page-subtitle">
+              FMLA Case #{caseData.id} &middot; {getReasonLabel(caseData.reason)}
+            </p>
+          </div>
+          <span className={STATUS_BADGE[caseData.status] || 'badge'}>
+            {formatStatus(caseData.status)}
+          </span>
         </div>
-        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[caseData.status] || STATUS_STYLES.closed}`}>
-          {formatStatus(caseData.status)}
-        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
         {/* Left column: Case details */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="vstack" style={{ gap: 16, gridColumn: 'span 2', minWidth: 0 }}>
           {/* Summary card */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Case Details</h2>
+          <div className="card" style={{ padding: 18 }}>
+            <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Case Details</h2>
               {!editing ? (
                 <button
                   onClick={() => setEditing(true)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="btn ghost"
+                  style={{ padding: '4px 10px', color: 'var(--accent-ink)' }}
                 >
                   Edit
                 </button>
               ) : (
-                <div className="flex gap-2">
+                <div className="hstack" style={{ gap: 8 }}>
                   <button
                     onClick={handleSaveCase}
                     disabled={saving}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium disabled:opacity-50"
+                    className="btn primary"
+                    style={{ padding: '4px 12px' }}
                   >
                     {saving ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={() => setEditing(false)}
-                    className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm"
+                    className="btn ghost"
+                    style={{ padding: '4px 12px' }}
                   >
                     Cancel
                   </button>
@@ -920,122 +709,125 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
             </div>
 
             {editing ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
-                    <select value={status} onChange={e => setStatus(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                      <option value="pending_designation">Pending Designation</option>
-                      <option value="active">Active</option>
-                      <option value="exhausted">Exhausted</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Certification Status</label>
-                    <select value={certStatus} onChange={e => setCertStatus(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                      {CERT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
+              <div className="vstack" style={{ gap: 14 }}>
+                <div className="grid-2">
+                  <label className="field">
+                    <span className="field-label">Status</span>
+                    <ComboSelect
+                      value={status}
+                      options={[
+                        { value: 'pending_designation', label: 'Pending Designation' },
+                        { value: 'active', label: 'Active' },
+                        { value: 'exhausted', label: 'Exhausted' },
+                        { value: 'closed', label: 'Closed' },
+                      ]}
+                      onChange={v => setStatus(v || 'pending_designation')}
+                      includeNone={false}
+                      searchable={false}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Certification Status</span>
+                    <ComboSelect
+                      value={certStatus}
+                      options={CERT_STATUSES}
+                      onChange={v => setCertStatus(v || 'not_requested')}
+                      includeNone={false}
+                      searchable={false}
+                    />
+                  </label>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Cert Received Date</label>
-                    <input type="date" value={certReceivedDate} onChange={e => setCertReceivedDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Recertification Due Date</label>
-                    <input type="date" value={recertDueDate} onChange={e => setRecertDueDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
+                <div className="grid-2">
+                  <label className="field">
+                    <span className="field-label">Cert Received Date</span>
+                    <input type="date" value={certReceivedDate} onChange={e => setCertReceivedDate(e.target.value)} className="input" />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Recertification Due Date</span>
+                    <input type="date" value={recertDueDate} onChange={e => setRecertDueDate(e.target.value)} className="input" />
+                  </label>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Actual End Date</label>
-                    <input type="date" value={actualEndDate} onChange={e => setActualEndDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div className="flex items-end pb-2">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={fitnessForDuty} onChange={e => setFitnessForDuty(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <div className="grid-2">
+                  <label className="field">
+                    <span className="field-label">Actual End Date</span>
+                    <input type="date" value={actualEndDate} onChange={e => setActualEndDate(e.target.value)} className="input" />
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={fitnessForDuty} onChange={e => setFitnessForDuty(e.target.checked)} />
                       Fitness for Duty Received
                     </label>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
-                  <textarea value={caseNotes} onChange={e => setCaseNotes(e.target.value)} rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                </div>
+                <label className="field">
+                  <span className="field-label">Notes</span>
+                  <textarea value={caseNotes} onChange={e => setCaseNotes(e.target.value)} rows={3} className="input" />
+                </label>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 12, columnGap: 24, fontSize: 13 }}>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Reason</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{getReasonLabel(caseData.reason)}</p>
+                  <span style={fieldLabelCss}>Reason</span>
+                  <p style={fieldValueCss}>{getReasonLabel(caseData.reason)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Leave Type</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{getLeaveTypeLabel(caseData.leave_type)}</p>
+                  <span style={fieldLabelCss}>Leave Type</span>
+                  <p style={fieldValueCss}>{getLeaveTypeLabel(caseData.leave_type)}</p>
                 </div>
                 {caseData.family_member && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Family Member</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{caseData.family_member}</p>
+                    <span style={fieldLabelCss}>Family Member</span>
+                    <p style={fieldValueCss}>{caseData.family_member}</p>
                   </div>
                 )}
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Start Date</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.start_date)}</p>
+                  <span style={fieldLabelCss}>Start Date</span>
+                  <p style={fieldValueCss}>{formatDate(caseData.start_date)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Expected End</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.expected_end_date)}</p>
+                  <span style={fieldLabelCss}>Expected End</span>
+                  <p style={fieldValueCss}>{formatDate(caseData.expected_end_date)}</p>
                 </div>
                 {caseData.actual_end_date && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Actual End</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.actual_end_date)}</p>
+                    <span style={fieldLabelCss}>Actual End</span>
+                    <p style={fieldValueCss}>{formatDate(caseData.actual_end_date)}</p>
                   </div>
                 )}
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Certification</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{getCertStatusLabel(caseData.cert_status)}</p>
+                  <span style={fieldLabelCss}>Certification</span>
+                  <p style={fieldValueCss}>{getCertStatusLabel(caseData.cert_status)}</p>
                 </div>
                 {caseData.cert_due_date && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Cert Due Date</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.cert_due_date)}</p>
+                    <span style={fieldLabelCss}>Cert Due Date</span>
+                    <p style={fieldValueCss}>{formatDate(caseData.cert_due_date)}</p>
                   </div>
                 )}
                 {caseData.cert_received_date && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Cert Received</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.cert_received_date)}</p>
+                    <span style={fieldLabelCss}>Cert Received</span>
+                    <p style={fieldValueCss}>{formatDate(caseData.cert_received_date)}</p>
                   </div>
                 )}
                 {caseData.recert_due_date && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Recert Due</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.recert_due_date)}</p>
+                    <span style={fieldLabelCss}>Recert Due</span>
+                    <p style={fieldValueCss}>{formatDate(caseData.recert_due_date)}</p>
                   </div>
                 )}
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Leave Year Start</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(caseData.leave_year_start)}</p>
+                  <span style={fieldLabelCss}>Leave Year Start</span>
+                  <p style={fieldValueCss}>{formatDate(caseData.leave_year_start)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Fitness for Duty</span>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{caseData.fitness_for_duty ? 'Yes' : 'No'}</p>
+                  <span style={fieldLabelCss}>Fitness for Duty</span>
+                  <p style={fieldValueCss}>{caseData.fitness_for_duty ? 'Yes' : 'No'}</p>
                 </div>
                 {caseData.notes && (
-                  <div className="col-span-2">
-                    <span className="text-gray-500 dark:text-gray-400">Notes</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{caseData.notes}</p>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <span style={fieldLabelCss}>Notes</span>
+                    <p style={{ ...fieldValueCss, whiteSpace: 'pre-wrap' }}>{caseData.notes}</p>
                   </div>
                 )}
               </div>
@@ -1043,127 +835,113 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
           </div>
 
           {/* Episodes list */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Leave Episodes</h2>
+          <div className="card" style={{ padding: 18 }}>
+            <div className="hstack" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Leave Episodes</h2>
               <button
                 onClick={() => setShowAddEpisode(!showAddEpisode)}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                className="btn primary"
+                style={{ padding: '6px 12px' }}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus style={{ width: 14, height: 14 }} />
                 Log Hours
               </button>
             </div>
 
             {showAddEpisode && (
-              <form onSubmit={handleAddEpisode} className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
-                {/* Mode toggle */}
-                <div className="flex gap-1 bg-gray-200 dark:bg-gray-700 rounded-md p-0.5 w-fit">
-                  <button type="button" onClick={() => setEpMode('single')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${epMode === 'single' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
-                    Single Day
-                  </button>
-                  <button type="button" onClick={() => setEpMode('range')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${epMode === 'range' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
-                    Date Range
-                  </button>
-                </div>
-
-                {epMode === 'single' ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date *</label>
-                      <input type="date" value={epDate} onChange={e => setEpDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hours *</label>
-                      <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
-                      <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                    </div>
+              <form onSubmit={handleAddEpisode} style={{ marginBottom: 16, padding: 14, background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 'var(--radius)' }}>
+                <div className="vstack" style={{ gap: 12 }}>
+                  {/* Mode toggle */}
+                  <div className="seg" style={{ width: 'fit-content' }}>
+                    <button type="button" aria-selected={epMode === 'single'} onClick={() => setEpMode('single')}>Single Day</button>
+                    <button type="button" aria-selected={epMode === 'range'} onClick={() => setEpMode('range')}>Date Range</button>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date *</label>
-                        <input type="date" value={epStartDate} onChange={e => setEpStartDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Date *</label>
-                        <input type="date" value={epEndDate} onChange={e => setEpEndDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hours/Day *</label>
-                        <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
-                        <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
+
+                  {epMode === 'single' ? (
+                    <div className="grid-3">
+                      <label className="field">
+                        <span className="field-label">Date *</span>
+                        <input type="date" value={epDate} onChange={e => setEpDate(e.target.value)} className="input" />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Hours *</span>
+                        <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)} className="input" />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Notes</span>
+                        <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional" className="input" />
+                      </label>
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={epSkipWeekends} onChange={e => setEpSkipWeekends(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                      Skip weekends (Sat/Sun)
-                    </label>
-                    {epStartDate && epEndDate && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        This will create an episode for each {epSkipWeekends ? 'weekday' : 'day'} from {epStartDate} to {epEndDate} at {epHours}h/day.
-                      </p>
+                  ) : (
+                    <div className="vstack" style={{ gap: 12 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                        <label className="field">
+                          <span className="field-label">Start Date *</span>
+                          <input type="date" value={epStartDate} onChange={e => setEpStartDate(e.target.value)} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">End Date *</span>
+                          <input type="date" value={epEndDate} onChange={e => setEpEndDate(e.target.value)} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Hours/Day *</span>
+                          <input type="number" step="0.5" min="0.5" max="24" value={epHours} onChange={e => setEpHours(parseFloat(e.target.value) || 0)} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Notes</span>
+                          <input type="text" value={epNotes} onChange={e => setEpNotes(e.target.value)} placeholder="Optional" className="input" />
+                        </label>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={epSkipWeekends} onChange={e => setEpSkipWeekends(e.target.checked)} />
+                        Skip weekends (Sat/Sun)
+                      </label>
+                      {epStartDate && epEndDate && (
+                        <p className="small muted" style={{ margin: 0 }}>
+                          This will create an episode for each {epSkipWeekends ? 'weekday' : 'day'} from {epStartDate} to {epEndDate} at {epHours}h/day.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="hstack" style={{ alignItems: 'center', gap: 10 }}>
+                    <button type="submit" disabled={addingEpisode} className="btn primary" style={{ padding: '6px 12px' }}>
+                      {addingEpisode ? 'Adding...' : epMode === 'range' ? 'Add Date Range' : 'Add Episode'}
+                    </button>
+                    <button type="button" onClick={() => { setShowAddEpisode(false); setBulkResult(null); }} className="btn ghost" style={{ padding: '6px 12px' }}>
+                      Cancel
+                    </button>
+                    {bulkResult !== null && (
+                      <span className="badge success">
+                        Added {bulkResult} episode{bulkResult !== 1 ? 's' : ''}
+                      </span>
                     )}
                   </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <button type="submit" disabled={addingEpisode}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium disabled:opacity-50">
-                    {addingEpisode ? 'Adding...' : epMode === 'range' ? 'Add Date Range' : 'Add Episode'}
-                  </button>
-                  <button type="button" onClick={() => { setShowAddEpisode(false); setBulkResult(null); }}
-                    className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm">
-                    Cancel
-                  </button>
-                  {bulkResult !== null && (
-                    <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-                      Added {bulkResult} episode{bulkResult !== 1 ? 's' : ''}
-                    </span>
-                  )}
                 </div>
               </form>
             )}
 
             {episodes.length === 0 ? (
-              <p className="text-center py-6 text-gray-400 dark:text-gray-500 text-sm">No episodes logged yet</p>
+              <p className="small muted" style={{ textAlign: 'center', padding: '24px 0', margin: 0 }}>No episodes logged yet</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="kin-table">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
-                    <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Hours</th>
-                    <th className="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Notes</th>
-                    <th className="text-right py-2 w-10"></th>
+                  <tr>
+                    <th>Date</th>
+                    <th>Hours</th>
+                    <th>Notes</th>
+                    <th style={{ width: 40 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {episodes.map(ep => (
-                    <tr key={ep.id} className="border-b border-gray-100 dark:border-gray-700">
-                      <td className="py-2 text-gray-900 dark:text-gray-100">{formatDate(ep.date)}</td>
-                      <td className="py-2 text-gray-700 dark:text-gray-300">{ep.hours_used}h</td>
-                      <td className="py-2 text-gray-600 dark:text-gray-400">{ep.notes || '—'}</td>
-                      <td className="py-2 text-right">
-                        <button onClick={() => handleDeleteEpisode(ep.id)}
-                          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
+                    <tr key={ep.id}>
+                      <td style={{ color: 'var(--ink)' }}>{formatDate(ep.date)}</td>
+                      <td style={{ color: 'var(--ink-2)' }}>{ep.hours_used}h</td>
+                      <td className="muted">{ep.notes || '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button onClick={() => handleDeleteEpisode(ep.id)} className="icon-btn" style={{ color: 'var(--danger)' }} aria-label="Delete episode">
+                          <Trash2 style={{ width: 14, height: 14 }} />
                         </button>
                       </td>
                     </tr>
@@ -1175,36 +953,35 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
         </div>
 
         {/* Right column: Usage gauge */}
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Leave Entitlement</h3>
-            {/* Circular-ish gauge */}
-            <div className="flex flex-col items-center">
-              <div className="relative w-32 h-32">
-                <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-                  <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" strokeWidth="10"
-                    className="text-gray-200 dark:text-gray-700" />
+        <div className="vstack" style={{ gap: 16, minWidth: 0 }}>
+          <div className="card" style={{ padding: 18 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-3)', margin: '0 0 12px' }}>Leave Entitlement</h3>
+            {/* Circular gauge */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ position: 'relative', width: 128, height: 128 }}>
+                <svg viewBox="0 0 120 120" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                  <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" strokeWidth="10" />
                   <circle cx="60" cy="60" r="52" fill="none" strokeWidth="10"
                     strokeDasharray={`${2 * Math.PI * 52}`}
                     strokeDashoffset={`${2 * Math.PI * 52 * (1 - Math.min(pct, 100) / 100)}`}
                     strokeLinecap="round"
-                    className={`${pct >= 80 ? 'text-red-500' : pct >= 50 ? 'text-yellow-500' : 'text-blue-500'} transition-all duration-500`}
-                    stroke="currentColor"
+                    stroke={pct >= 80 ? 'var(--danger)' : pct >= 50 ? 'var(--warn)' : 'var(--accent)'}
+                    style={{ transition: 'stroke-dashoffset 0.5s' }}
                   />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">{Math.round(pct)}%</span>
-                  <span className="text-xs text-gray-500">used</span>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink)' }}>{Math.round(pct)}%</span>
+                  <span className="small" style={{ color: 'var(--ink-3)' }}>used</span>
                 </div>
               </div>
-              <div className="mt-4 text-center space-y-1">
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-semibold">{caseData.used_hours}</span> of <span className="font-semibold">{caseData.entitlement_hours}</span> hours used
+              <div style={{ marginTop: 14, textAlign: 'center' }} className="vstack">
+                <p className="small" style={{ margin: 0, color: 'var(--ink-2)' }}>
+                  <span style={{ fontWeight: 600 }}>{caseData.used_hours}</span> of <span style={{ fontWeight: 600 }}>{caseData.entitlement_hours}</span> hours used
                 </p>
-                <p className="text-sm text-gray-500">
-                  <span className="font-semibold">{remainingHours}</span> hours remaining
+                <p className="small" style={{ margin: 0, color: 'var(--ink-3)' }}>
+                  <span style={{ fontWeight: 600 }}>{remainingHours}</span> hours remaining
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="small" style={{ margin: 0, color: 'var(--ink-4)' }}>
                   ≈ {(remainingHours / 8).toFixed(1)} days remaining
                 </p>
               </div>
@@ -1212,60 +989,61 @@ function CaseDetail({ fmlaCase, onBack, onUpdated }: { fmlaCase: FmlaCase; onBac
           </div>
 
           {/* Key dates */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Key Dates</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Leave Year Start</span>
-                <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(caseData.leave_year_start)}</span>
+          <div className="card" style={{ padding: 18 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-3)', margin: '0 0 12px' }}>Key Dates</h3>
+            <div className="vstack" style={{ gap: 8, fontSize: 13 }}>
+              <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--ink-3)' }}>Leave Year Start</span>
+                <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(caseData.leave_year_start)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Case Start</span>
-                <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(caseData.start_date)}</span>
+              <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--ink-3)' }}>Case Start</span>
+                <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(caseData.start_date)}</span>
               </div>
               {caseData.expected_end_date && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Expected End</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(caseData.expected_end_date)}</span>
+                <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--ink-3)' }}>Expected End</span>
+                  <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(caseData.expected_end_date)}</span>
                 </div>
               )}
               {caseData.cert_due_date && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Cert Due</span>
-                  <span className={`font-medium ${
-                    caseData.cert_status !== 'received' && caseData.cert_status !== 'approved' && new Date(caseData.cert_due_date) < new Date()
-                      ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'
-                  }`}>
+                <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--ink-3)' }}>Cert Due</span>
+                  <span style={{
+                    fontWeight: 500,
+                    color: caseData.cert_status !== 'received' && caseData.cert_status !== 'approved' && new Date(caseData.cert_due_date) < new Date()
+                      ? 'var(--danger)' : 'var(--ink)'
+                  }}>
                     {formatDate(caseData.cert_due_date)}
                   </span>
                 </div>
               )}
               {caseData.recert_due_date && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Recert Due</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(caseData.recert_due_date)}</span>
+                <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--ink-3)' }}>Recert Due</span>
+                  <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(caseData.recert_due_date)}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Timeline summary */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Episode Summary</h3>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Total Episodes</span>
-                <span className="text-gray-900 dark:text-gray-100 font-medium">{episodes.length}</span>
+          <div className="card" style={{ padding: 18 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-3)', margin: '0 0 12px' }}>Episode Summary</h3>
+            <div className="vstack" style={{ gap: 4, fontSize: 13 }}>
+              <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--ink-3)' }}>Total Episodes</span>
+                <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{episodes.length}</span>
               </div>
               {episodes.length > 0 && (
                 <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">First Episode</span>
-                    <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(episodes[episodes.length - 1]?.date)}</span>
+                  <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--ink-3)' }}>First Episode</span>
+                    <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(episodes[episodes.length - 1]?.date)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Last Episode</span>
-                    <span className="text-gray-900 dark:text-gray-100 font-medium">{formatDate(episodes[0]?.date)}</span>
+                  <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--ink-3)' }}>Last Episode</span>
+                    <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{formatDate(episodes[0]?.date)}</span>
                   </div>
                 </>
               )}

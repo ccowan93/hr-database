@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useTheme } from '../context/ThemeContext';
 import BugReportDialog from '../components/BugReportDialog';
+import ComboSelect from '../components/ComboSelect';
 
 interface OneDriveStatus {
   connected: boolean;
@@ -204,12 +205,17 @@ export default function Settings() {
   };
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Settings</h2>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Settings</h1>
+          <p className="page-subtitle">App preferences, backups, and account</p>
+        </div>
+      </div>
 
       <div className="space-y-6">
         {/* Appearance */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="card shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Appearance</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Customize how the app looks.</p>
 
@@ -220,21 +226,16 @@ export default function Settings() {
             </div>
             <button
               onClick={toggleTheme}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${
-                theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
+              className={`kin-switch${theme === 'dark' ? ' on' : ''}`}
+              aria-label="Toggle dark mode"
             >
-              <span
-                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                  theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
+              <span className="kin-switch-thumb" />
             </button>
           </div>
         </div>
 
         {/* Local Auto-Backup */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="card shadow-sm p-6">
           <div className="flex items-center gap-3 mb-1">
             <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
@@ -246,11 +247,7 @@ export default function Settings() {
           </p>
 
           {lbMessage && (
-            <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
-              lbMessage.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-            }`}>
+            <div className={`kin-alert ${lbMessage.type === 'success' ? '' : 'danger'}`} style={{ marginBottom: 16 }}>
               {lbMessage.text}
             </div>
           )}
@@ -270,25 +267,16 @@ export default function Settings() {
                   </p>
                 </div>
                 {lbStatus.enabled ? (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleEnableLocalBackup}
-                      className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
-                    >
+                  <div className="hstack" style={{ gap: 8 }}>
+                    <button onClick={handleEnableLocalBackup} className="btn ghost">
                       Change
                     </button>
-                    <button
-                      onClick={handleDisableLocalBackup}
-                      className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
-                    >
+                    <button onClick={handleDisableLocalBackup} className="btn ghost">
                       Disable
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleEnableLocalBackup}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors flex-shrink-0"
-                  >
+                  <button onClick={handleEnableLocalBackup} className="btn accent">
                     Choose Folder
                   </button>
                 )}
@@ -306,11 +294,7 @@ export default function Settings() {
                           : 'No backups yet'}
                       </p>
                     </div>
-                    <button
-                      onClick={handleLocalBackupNow}
-                      disabled={lbLoading}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-emerald-400 transition-colors flex-shrink-0"
-                    >
+                    <button onClick={handleLocalBackupNow} disabled={lbLoading} className="btn accent">
                       {lbLoading ? 'Backing up...' : 'Backup Now'}
                     </button>
                   </div>
@@ -321,11 +305,7 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Restore from Local Backup</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Restore a previous backup from your local folder</p>
                     </div>
-                    <button
-                      onClick={handleShowLocalRestoreList}
-                      disabled={lbLoading}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:bg-amber-400 transition-colors flex-shrink-0"
-                    >
+                    <button onClick={handleShowLocalRestoreList} disabled={lbLoading} className="btn" style={{ background: 'var(--warn)', color: '#fff' }}>
                       Restore
                     </button>
                   </div>
@@ -336,17 +316,21 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Backup Interval</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">How often to automatically save a backup</p>
                     </div>
-                    <select
-                      value={lbStatus.intervalHours}
-                      onChange={e => handleUpdateLocalInterval(Number(e.target.value))}
-                      className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                    >
-                      <option value={6}>Every 6 hours</option>
-                      <option value={12}>Every 12 hours</option>
-                      <option value={24}>Daily</option>
-                      <option value={48}>Every 2 days</option>
-                      <option value={168}>Weekly</option>
-                    </select>
+                    <div style={{ minWidth: 180 }}>
+                      <ComboSelect
+                        value={String(lbStatus.intervalHours)}
+                        options={[
+                          { value: '6', label: 'Every 6 hours' },
+                          { value: '12', label: 'Every 12 hours' },
+                          { value: '24', label: 'Daily' },
+                          { value: '48', label: 'Every 2 days' },
+                          { value: '168', label: 'Weekly' },
+                        ]}
+                        onChange={v => handleUpdateLocalInterval(Number(v) || 24)}
+                        includeNone={false}
+                        searchable={false}
+                      />
+                    </div>
                   </div>
 
                   {/* Keep Count */}
@@ -355,16 +339,20 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Backups to Keep</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Older backups are automatically deleted</p>
                     </div>
-                    <select
-                      value={lbStatus.keepCount}
-                      onChange={e => handleUpdateLocalKeepCount(Number(e.target.value))}
-                      className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                    >
-                      <option value={3}>Last 3</option>
-                      <option value={7}>Last 7</option>
-                      <option value={14}>Last 14</option>
-                      <option value={30}>Last 30</option>
-                    </select>
+                    <div style={{ minWidth: 160 }}>
+                      <ComboSelect
+                        value={String(lbStatus.keepCount)}
+                        options={[
+                          { value: '3', label: 'Last 3' },
+                          { value: '7', label: 'Last 7' },
+                          { value: '14', label: 'Last 14' },
+                          { value: '30', label: 'Last 30' },
+                        ]}
+                        onChange={v => handleUpdateLocalKeepCount(Number(v) || 7)}
+                        includeNone={false}
+                        searchable={false}
+                      />
+                    </div>
                   </div>
                 </>
               )}
@@ -374,29 +362,30 @@ export default function Settings() {
 
         {/* Local Restore Modal */}
         {showLocalRestoreList && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowLocalRestoreList(false)}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[500px] max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Restore from Local Backup</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Select a backup to restore</p>
+          <div className="kin-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowLocalRestoreList(false); }}>
+            <div className="kin-modal" style={{ maxWidth: 500 }}>
+              <div className="kin-modal-head">
+                <h2 className="kin-modal-title">Restore from Local Backup</h2>
               </div>
-              <div className="px-6 py-4 max-h-80 overflow-y-auto">
+              <div className="kin-modal-body">
+                <p className="small muted">Select a backup to restore</p>
                 {localRestoreFiles.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No backups found.</p>
+                  <p className="small muted" style={{ textAlign: 'center', padding: '16px 0' }}>No backups found.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="vstack" style={{ gap: 8 }}>
                     {localRestoreFiles.map(file => (
-                      <div key={file.path} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div key={file.path} className="hstack" style={{ justifyContent: 'space-between', padding: 12, background: 'var(--surface-2)', borderRadius: 'var(--radius)' }}>
                         <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', margin: 0 }}>{file.name}</p>
+                          <p className="small muted" style={{ margin: 0 }}>
                             {new Date(file.modified).toLocaleString()} &middot; {(file.size / 1024).toFixed(0)} KB
                           </p>
                         </div>
                         <button
                           onClick={() => handleLocalRestore(file.path)}
                           disabled={lbLoading}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-xs font-medium transition-colors"
+                          className="btn"
+                          style={{ background: 'var(--warn)', color: '#fff', padding: '6px 10px', fontSize: 12 }}
                         >
                           Restore
                         </button>
@@ -405,11 +394,8 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                <button
-                  onClick={() => setShowLocalRestoreList(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
-                >
+              <div className="kin-modal-foot">
+                <button onClick={() => setShowLocalRestoreList(false)} className="btn ghost">
                   Cancel
                 </button>
               </div>
@@ -418,7 +404,7 @@ export default function Settings() {
         )}
 
         {/* OneDrive Cloud Backup */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="card shadow-sm p-6">
           <div className="flex items-center gap-3 mb-1">
             <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12.39 2.15C10.46 2.15 8.72 3.25 7.87 4.92 6.27 3.88 4.15 4.54 3.13 6.14 2.12 7.75 2.78 9.87 4.38 10.88L4.38 10.88C3.56 11.41 3 12.35 3 13.42 3 15.07 4.34 16.42 6 16.42L18 16.42C20.21 16.42 22 14.63 22 12.42 22 10.21 20.21 8.42 18 8.42 18 8.42 18 8.42 17.97 8.42 17.82 4.92 15.39 2.15 12.39 2.15Z" />
@@ -431,11 +417,7 @@ export default function Settings() {
           </p>
 
           {odMessage && (
-            <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
-              odMessage.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-            }`}>
+            <div className={`kin-alert ${odMessage.type === 'success' ? '' : 'danger'}`} style={{ marginBottom: 16 }}>
               {odMessage.text}
             </div>
           )}
@@ -454,37 +436,30 @@ export default function Settings() {
                 </div>
                 <button
                   onClick={() => setShowClientIdInput(!showClientIdInput)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
-                    odStatus.clientConfigured
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                  className={odStatus.clientConfigured ? 'btn ghost' : 'btn primary'}
                 >
                   {odStatus.clientConfigured ? 'Update' : 'Configure'}
                 </button>
               </div>
 
               {showClientIdInput && (
-                <div className="py-3 pl-4 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                <div style={{ padding: '12px 0 12px 16px', borderTop: '1px solid var(--line)' }}>
+                  <p className="small muted" style={{ marginBottom: 8 }}>
                     Register a "Public client/native" app at{' '}
-                    <span className="font-mono text-blue-600 dark:text-blue-400">portal.azure.com</span>{' '}
-                    with redirect URI <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">http://localhost</span>{' '}
-                    and API permissions: <span className="font-semibold">Files.ReadWrite</span>, <span className="font-semibold">User.Read</span>
+                    <span className="mono" style={{ color: 'var(--accent)' }}>portal.azure.com</span>{' '}
+                    with redirect URI <span className="mono" style={{ background: 'var(--surface-2)', padding: '0 4px', borderRadius: 3 }}>http://localhost</span>{' '}
+                    and API permissions: <span style={{ fontWeight: 600 }}>Files.ReadWrite</span>, <span style={{ fontWeight: 600 }}>User.Read</span>
                   </p>
-                  <div className="flex gap-2">
+                  <div className="hstack" style={{ gap: 8 }}>
                     <input
                       type="text"
                       value={clientIdInput}
                       onChange={e => setClientIdInput(e.target.value)}
                       placeholder="Paste Application (Client) ID"
-                      className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
+                      className="input"
+                      style={{ flex: 1 }}
                     />
-                    <button
-                      onClick={handleSetClientId}
-                      disabled={!clientIdInput.trim()}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
-                    >
+                    <button onClick={handleSetClientId} disabled={!clientIdInput.trim()} className="btn primary">
                       Save
                     </button>
                   </div>
@@ -502,18 +477,11 @@ export default function Settings() {
                   </p>
                 </div>
                 {odStatus.connected ? (
-                  <button
-                    onClick={handleSignOut}
-                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
-                  >
+                  <button onClick={handleSignOut} className="btn ghost">
                     Disconnect
                   </button>
                 ) : (
-                  <button
-                    onClick={handleSignIn}
-                    disabled={odLoading || !odStatus.clientConfigured}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex-shrink-0"
-                  >
+                  <button onClick={handleSignIn} disabled={odLoading || !odStatus.clientConfigured} className="btn primary">
                     {odLoading ? 'Signing in...' : 'Sign In'}
                   </button>
                 )}
@@ -531,11 +499,7 @@ export default function Settings() {
                           : 'No backups yet'}
                       </p>
                     </div>
-                    <button
-                      onClick={handleBackupNow}
-                      disabled={odLoading}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex-shrink-0"
-                    >
+                    <button onClick={handleBackupNow} disabled={odLoading} className="btn primary">
                       {odLoading ? 'Backing up...' : 'Backup Now'}
                     </button>
                   </div>
@@ -545,11 +509,7 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Restore from OneDrive</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Download and restore a previous backup</p>
                     </div>
-                    <button
-                      onClick={handleShowRestoreList}
-                      disabled={odLoading}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:bg-amber-400 transition-colors flex-shrink-0"
-                    >
+                    <button onClick={handleShowRestoreList} disabled={odLoading} className="btn" style={{ background: 'var(--warn)', color: '#fff' }}>
                       Restore
                     </button>
                   </div>
@@ -559,17 +519,21 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Auto-Backup Interval</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">How often to automatically backup to OneDrive</p>
                     </div>
-                    <select
-                      value={odStatus.backupIntervalHours}
-                      onChange={e => handleUpdateInterval(Number(e.target.value))}
-                      className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                    >
-                      <option value={6}>Every 6 hours</option>
-                      <option value={12}>Every 12 hours</option>
-                      <option value={24}>Daily</option>
-                      <option value={48}>Every 2 days</option>
-                      <option value={168}>Weekly</option>
-                    </select>
+                    <div style={{ minWidth: 180 }}>
+                      <ComboSelect
+                        value={String(odStatus.backupIntervalHours)}
+                        options={[
+                          { value: '6', label: 'Every 6 hours' },
+                          { value: '12', label: 'Every 12 hours' },
+                          { value: '24', label: 'Daily' },
+                          { value: '48', label: 'Every 2 days' },
+                          { value: '168', label: 'Weekly' },
+                        ]}
+                        onChange={v => handleUpdateInterval(Number(v) || 24)}
+                        includeNone={false}
+                        searchable={false}
+                      />
+                    </div>
                   </div>
 
                   <div className="py-3 border-t border-gray-100 dark:border-gray-700">
@@ -585,29 +549,30 @@ export default function Settings() {
 
         {/* Restore from OneDrive Modal */}
         {showRestoreList && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowRestoreList(false)}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[500px] max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Restore from OneDrive</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Select a backup to restore</p>
+          <div className="kin-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowRestoreList(false); }}>
+            <div className="kin-modal" style={{ maxWidth: 500 }}>
+              <div className="kin-modal-head">
+                <h2 className="kin-modal-title">Restore from OneDrive</h2>
               </div>
-              <div className="px-6 py-4 max-h-80 overflow-y-auto">
+              <div className="kin-modal-body">
+                <p className="small muted">Select a backup to restore</p>
                 {restoreFiles.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No backups found on OneDrive.</p>
+                  <p className="small muted" style={{ textAlign: 'center', padding: '16px 0' }}>No backups found on OneDrive.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="vstack" style={{ gap: 8 }}>
                     {restoreFiles.map(file => (
-                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div key={file.id} className="hstack" style={{ justifyContent: 'space-between', padding: 12, background: 'var(--surface-2)', borderRadius: 'var(--radius)' }}>
                         <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', margin: 0 }}>{file.name}</p>
+                          <p className="small muted" style={{ margin: 0 }}>
                             {new Date(file.lastModified).toLocaleString()}
                           </p>
                         </div>
                         <button
                           onClick={() => handleRestore(file.id)}
                           disabled={odLoading}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-xs font-medium transition-colors"
+                          className="btn"
+                          style={{ background: 'var(--warn)', color: '#fff', padding: '6px 10px', fontSize: 12 }}
                         >
                           Restore
                         </button>
@@ -616,11 +581,8 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                <button
-                  onClick={() => setShowRestoreList(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
-                >
+              <div className="kin-modal-foot">
+                <button onClick={() => setShowRestoreList(false)} className="btn ghost">
                   Cancel
                 </button>
               </div>
@@ -629,7 +591,7 @@ export default function Settings() {
         )}
 
         {/* About & Updates */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="card shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">About & Updates</h3>
           <div className="flex items-center justify-between">
             <div>
@@ -663,7 +625,7 @@ export default function Settings() {
                   if (statusEl) statusEl.textContent = 'Update check failed';
                 }
               }}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors"
+              className="btn ghost"
             >
               Check for Updates
             </button>
@@ -677,8 +639,8 @@ export default function Settings() {
         <SupportSection />
 
         {/* Danger Zone */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-800 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-1">Danger Zone</h3>
+        <div className="card shadow-sm p-6" style={{ borderColor: 'oklch(from var(--danger) l c h / 0.35)' }}>
+          <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger)' }}>Danger Zone</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Irreversible actions that affect your entire database.</p>
 
           <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
@@ -686,10 +648,7 @@ export default function Settings() {
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Reset Application</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Delete all employees, pay history, and audit logs. This cannot be undone.</p>
             </div>
-            <button
-              onClick={openReset}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex-shrink-0"
-            >
+            <button onClick={openReset} className="btn" style={{ background: 'var(--danger)', color: '#fff' }}>
               Reset App
             </button>
           </div>
@@ -698,26 +657,24 @@ export default function Settings() {
 
       {/* Reset Confirmation Modal */}
       {showReset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeReset}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[440px] p-6" onClick={e => e.stopPropagation()}>
+        <div className="kin-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) closeReset(); }}>
+          <div className="kin-modal" style={{ maxWidth: 440 }}>
             {step === 1 && (
               <>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Reset Application?</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
-                  This will permanently delete <span className="font-semibold text-red-600 dark:text-red-400">all employees, pay history, and audit logs</span> from the database.
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">This action cannot be undone.</p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={closeReset}
-                    className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
+                <div className="kin-modal-head">
+                  <h2 className="kin-modal-title">Reset Application?</h2>
+                </div>
+                <div className="kin-modal-body">
+                  <p className="small" style={{ color: 'var(--ink-2)' }}>
+                    This will permanently delete <span style={{ fontWeight: 600, color: 'var(--danger)' }}>all employees, pay history, and audit logs</span> from the database.
+                  </p>
+                  <p className="small" style={{ color: 'var(--ink-2)' }}>This action cannot be undone.</p>
+                </div>
+                <div className="kin-modal-foot">
+                  <button onClick={closeReset} className="btn ghost">
                     Cancel
                   </button>
-                  <button
-                    onClick={() => setStep(2)}
-                    className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                  >
+                  <button onClick={() => setStep(2)} className="btn" style={{ background: 'var(--danger)', color: '#fff' }}>
                     Continue with Reset
                   </button>
                 </div>
@@ -726,29 +683,31 @@ export default function Settings() {
 
             {step === 2 && (
               <>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Final Confirmation</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                  Type <span className="font-mono font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded">delete</span> below to confirm you want to wipe all data.
-                </p>
-                <input
-                  type="text"
-                  value={confirmText}
-                  onChange={e => setConfirmText(e.target.value)}
-                  placeholder="Type 'delete' to confirm"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-gray-200 mb-4"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={closeReset}
-                    className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
+                <div className="kin-modal-head">
+                  <h2 className="kin-modal-title">Final Confirmation</h2>
+                </div>
+                <div className="kin-modal-body">
+                  <p className="small" style={{ color: 'var(--ink-2)' }}>
+                    Type <span className="mono" style={{ fontWeight: 700, color: 'var(--danger)', background: 'oklch(from var(--danger) l c h / 0.12)', padding: '2px 6px', borderRadius: 3 }}>delete</span> below to confirm you want to wipe all data.
+                  </p>
+                  <input
+                    type="text"
+                    value={confirmText}
+                    onChange={e => setConfirmText(e.target.value)}
+                    placeholder="Type 'delete' to confirm"
+                    className="input"
+                    autoFocus
+                  />
+                </div>
+                <div className="kin-modal-foot">
+                  <button onClick={closeReset} className="btn ghost">
                     Cancel
                   </button>
                   <button
                     onClick={handleReset}
                     disabled={confirmText !== 'delete' || resetting}
-                    className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-700"
+                    className="btn"
+                    style={{ background: 'var(--danger)', color: '#fff' }}
                   >
                     {resetting ? 'Resetting...' : 'Delete Everything'}
                   </button>
@@ -826,7 +785,7 @@ function SecuritySection() {
   if (!status) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+    <div className="card shadow-sm p-6">
       <div className="flex items-center gap-3 mb-1">
         <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -838,7 +797,7 @@ function SecuritySection() {
       </p>
 
       {message && (
-        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+        <div className={`kin-alert ${message.type === 'success' ? '' : 'danger'}`} style={{ marginBottom: 16 }}>
           {message.text}
         </div>
       )}
@@ -850,18 +809,18 @@ function SecuritySection() {
         </div>
         <button
           onClick={() => { setShowChange(v => !v); setMessage(null); }}
-          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium"
+          className="btn ghost"
         >
           {showChange ? 'Cancel' : 'Change'}
         </button>
       </div>
 
       {showChange && (
-        <div className="py-3 space-y-3">
-          <input type="password" placeholder="Current password" value={oldPw} onChange={e => setOldPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="current-password" />
-          <input type="password" placeholder="New password" value={newPw} onChange={e => setNewPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="new-password" />
-          <input type="password" placeholder="Confirm new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="new-password" />
-          <button onClick={handleChangePassword} disabled={busy || !oldPw || !newPw} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+        <div className="vstack" style={{ gap: 12, padding: '12px 0' }}>
+          <input type="password" placeholder="Current password" value={oldPw} onChange={e => setOldPw(e.target.value)} className="input" autoComplete="current-password" />
+          <input type="password" placeholder="New password" value={newPw} onChange={e => setNewPw(e.target.value)} className="input" autoComplete="new-password" />
+          <input type="password" placeholder="Confirm new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className="input" autoComplete="new-password" />
+          <button onClick={handleChangePassword} disabled={busy || !oldPw || !newPw} className="btn primary" style={{ alignSelf: 'flex-start' }}>
             {busy ? 'Updating…' : 'Update password'}
           </button>
         </div>
@@ -878,7 +837,7 @@ function SecuritySection() {
           <button
             onClick={() => handleToggleTouchId(!status.touchIdEnabled)}
             disabled={busy}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${status.touchIdEnabled ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            className={status.touchIdEnabled ? 'btn ghost' : 'btn primary'}
           >
             {status.touchIdEnabled ? 'Disable' : 'Enable'}
           </button>
@@ -886,14 +845,18 @@ function SecuritySection() {
       )}
 
       {askTouchIdPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAskTouchIdPassword(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[420px] p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Confirm password</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Enter your password to enable Touch ID unlock.</p>
-            <input type="password" value={touchIdPw} onChange={e => setTouchIdPw(e.target.value)} className="w-full px-3 py-2 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => { setAskTouchIdPassword(false); setTouchIdPw(''); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
-              <button onClick={confirmEnableTouchId} disabled={busy || !touchIdPw} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+        <div className="kin-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setAskTouchIdPassword(false); }}>
+          <div className="kin-modal" style={{ maxWidth: 420 }}>
+            <div className="kin-modal-head">
+              <h2 className="kin-modal-title">Confirm password</h2>
+            </div>
+            <div className="kin-modal-body">
+              <p className="small muted">Enter your password to enable Touch ID unlock.</p>
+              <input type="password" value={touchIdPw} onChange={e => setTouchIdPw(e.target.value)} className="input" autoFocus />
+            </div>
+            <div className="kin-modal-foot">
+              <button onClick={() => { setAskTouchIdPassword(false); setTouchIdPw(''); }} className="btn ghost">Cancel</button>
+              <button onClick={confirmEnableTouchId} disabled={busy || !touchIdPw} className="btn primary">
                 {busy ? 'Enabling…' : 'Enable Touch ID'}
               </button>
             </div>
@@ -908,7 +871,7 @@ function SupportSection() {
   const [showReport, setShowReport] = useState(false);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+    <div className="card shadow-sm p-6">
       <div className="flex items-center gap-3 mb-1">
         <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -921,10 +884,7 @@ function SupportSection() {
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Report a bug</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Collects app version, OS details, and recent logs. No employee data is included.</p>
         </div>
-        <button
-          onClick={() => setShowReport(true)}
-          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium"
-        >
+        <button onClick={() => setShowReport(true)} className="btn ghost">
           Report bug…
         </button>
       </div>

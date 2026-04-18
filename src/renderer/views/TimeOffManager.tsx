@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import TimeOffRequestForm from '../components/TimeOffRequestForm';
+import ComboSelect from '../components/ComboSelect';
 import type { TimeOffRequest } from '../types/attendance';
 import { TIME_OFF_REQUEST_TYPES } from '../types/attendance';
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  denied: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+const STATUS_CLASS: Record<string, string> = {
+  pending: 'badge warn',
+  approved: 'badge accent',
+  denied: 'badge danger',
 };
 
 function getTypeLabel(value: string): string {
@@ -50,132 +51,129 @@ export default function TimeOffManager() {
     : requests;
 
   const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const deniedCount = requests.filter(r => r.status === 'denied').length;
+  const totalCount = requests.length;
+
+  const statusTabs: { value: string; label: string }[] = [
+    { value: '', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'denied', label: 'Denied' },
+  ];
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Time Off</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage time-off requests
-            {pendingCount > 0 && (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                {pendingCount} pending
-              </span>
-            )}
-          </p>
+          <h1 className="page-title">Time off</h1>
+          <p className="page-subtitle">Manage time-off requests across the company</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <button onClick={() => setShowForm(true)} className="btn primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          New Request
+          New request
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="denied">Denied</option>
-          </select>
+      <div className="stat-grid" style={{ marginBottom: 20 }}>
+        <div className="stat">
+          <div className="stat-label">Total</div>
+          <div className="stat-value">{totalCount}</div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-          >
-            <option value="">All Types</option>
-            {TIME_OFF_REQUEST_TYPES.map(type => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
+        <div className="stat">
+          <div className="stat-label">Pending</div>
+          <div className="stat-value">{pendingCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Approved</div>
+          <div className="stat-value">{approvedCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Denied</div>
+          <div className="stat-value">{deniedCount}</div>
         </div>
       </div>
 
-      {/* Requests Table */}
+      <div className="tab-row">
+        {statusTabs.map(t => (
+          <button
+            key={t.value}
+            className="tab"
+            aria-selected={statusFilter === t.value}
+            onClick={() => setStatusFilter(t.value)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="card" style={{ padding: 14, display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 18 }}>
+        <label className="field" style={{ minWidth: 220 }}>
+          <span className="field-label">Type</span>
+          <ComboSelect
+            value={typeFilter}
+            options={TIME_OFF_REQUEST_TYPES.map(t => ({ value: t.value, label: t.label }))}
+            onChange={setTypeFilter}
+            includeNone={true}
+            noneLabel="All types"
+            searchable={false}
+          />
+        </label>
+      </div>
+
       {loading ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>
+        <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Loading…</div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-          <p className="text-gray-500 dark:text-gray-400">No time-off requests found.</p>
+        <div className="card muted" style={{ padding: '48px', textAlign: 'center' }}>
+          No time-off requests found.
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full">
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="kin-table">
             <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employee</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Dates</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+              <tr>
+                <th>Employee</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredRequests.map(req => (
-                <tr key={req.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{req.employee_name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{req.current_department}</div>
+                <tr key={req.id}>
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{req.employee_name}</div>
+                    <div className="small muted">{req.current_department}</div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                    {getTypeLabel(req.request_type)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm text-gray-900 dark:text-gray-100">
-                      {new Date(req.start_date + 'T12:00:00').toLocaleDateString()}
-                    </div>
+                  <td>{getTypeLabel(req.request_type)}</td>
+                  <td>
+                    <div>{new Date(req.start_date + 'T12:00:00').toLocaleDateString()}</div>
                     {req.start_date !== req.end_date && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="small muted">
                         to {new Date(req.end_date + 'T12:00:00').toLocaleDateString()}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[req.status]}`}>
+                  <td>
+                    <span className={STATUS_CLASS[req.status]}>
                       {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                    {req.notes || '-'}
+                  <td className="muted" style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {req.notes || '—'}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {req.status === 'pending' && (
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleStatusUpdate(req.id, 'approved')}
-                          className="px-3 py-1 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 rounded text-xs font-medium transition-colors"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleStatusUpdate(req.id, 'denied')}
-                          className="px-3 py-1 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded text-xs font-medium transition-colors"
-                        >
-                          Deny
-                        </button>
+                  <td style={{ textAlign: 'right' }}>
+                    {req.status === 'pending' ? (
+                      <div className="hstack" style={{ justifyContent: 'flex-end' }}>
+                        <button className="btn accent" onClick={() => handleStatusUpdate(req.id, 'approved')}>Approve</button>
+                        <button className="btn" style={{ color: 'var(--danger)' }} onClick={() => handleStatusUpdate(req.id, 'denied')}>Deny</button>
                       </div>
-                    )}
-                    {req.status !== 'pending' && req.reviewed_at && (
-                      <div className="text-xs text-gray-400 dark:text-gray-500">
-                        {new Date(req.reviewed_at).toLocaleDateString()}
-                      </div>
+                    ) : req.reviewed_at && (
+                      <span className="small muted">{new Date(req.reviewed_at).toLocaleDateString()}</span>
                     )}
                   </td>
                 </tr>

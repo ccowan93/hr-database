@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Employee, Shift } from '../types/employee';
 import { api } from '../api';
+import ComboSelect from './ComboSelect';
 
 interface EmployeeFormProps {
   employee?: Employee;
@@ -52,7 +53,7 @@ const FIELD_GROUPS = [
   },
 ];
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200';
+const inputClass = 'kin-field-trigger';
 
 interface MultiSelectProps {
   value: string;
@@ -110,12 +111,12 @@ function MultiSelect({ value, options, onChange, placeholder }: MultiSelectProps
           <span className="text-gray-400 dark:text-gray-500 text-sm">{placeholder || 'Select...'}</span>
         )}
         {selected.map(s => (
-          <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium">
+          <span key={s} className="kin-chip">
             {s}
             <button
               type="button"
               onClick={e => { e.stopPropagation(); toggle(s); }}
-              className="hover:text-blue-900 dark:hover:text-blue-100"
+              style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
             >
               &times;
             </button>
@@ -124,8 +125,8 @@ function MultiSelect({ value, options, onChange, placeholder }: MultiSelectProps
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-60 overflow-hidden">
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="kin-dropdown-popup">
+          <div className="kin-dropdown-search">
             <input
               type="text"
               value={search}
@@ -134,7 +135,7 @@ function MultiSelect({ value, options, onChange, placeholder }: MultiSelectProps
                 if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
               }}
               placeholder="Search or type new..."
-              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="kin-dropdown-search-input"
               autoFocus
             />
           </div>
@@ -168,17 +169,54 @@ function MultiSelect({ value, options, onChange, placeholder }: MultiSelectProps
   );
 }
 
-interface ComboSelectProps {
+interface DatePickerProps {
   value: string;
-  options: string[];
   onChange: (value: string) => void;
-  placeholder?: string;
 }
 
-function ComboSelect({ value, options, onChange, placeholder }: ComboSelectProps) {
+function DatePicker({ value, onChange }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const parseISO = (iso: string): Date | null => {
+    if (!iso) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const toISO = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatDisplay = (iso: string): string => {
+    const d = parseISO(iso);
+    if (!d) return '';
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${m}/${day}/${d.getFullYear()}`;
+  };
+
+  const selected = parseISO(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const initialView = selected || today;
+  const [viewYear, setViewYear] = useState(initialView.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initialView.getMonth());
+
+  useEffect(() => {
+    if (!isOpen) {
+      const v = selected || today;
+      setViewYear(v.getFullYear());
+      setViewMonth(v.getMonth());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, value]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -190,67 +228,109 @@ function ComboSelect({ value, options, onChange, placeholder }: ComboSelectProps
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const filtered = options.filter(o =>
-    o.toLowerCase().includes(search.toLowerCase())
-  );
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+  const cells: { date: Date; muted: boolean }[] = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    const d = new Date(viewYear, viewMonth - 1, daysInPrevMonth - i);
+    cells.push({ date: d, muted: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ date: new Date(viewYear, viewMonth, d), muted: false });
+  }
+  while (cells.length < 42) {
+    const next = new Date(viewYear, viewMonth + 1, cells.length - daysInMonth - startWeekday + 1);
+    cells.push({ date: next, muted: true });
+  }
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
+    else setViewMonth(viewMonth - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
+    else setViewMonth(viewMonth + 1);
+  };
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   return (
     <div ref={containerRef} className="relative">
       <div
-        onClick={() => setIsOpen(true)}
-        className={`${inputClass} cursor-pointer flex items-center justify-between`}
+        onClick={() => setIsOpen(o => !o)}
+        className={`${inputClass} cursor-pointer`}
       >
         <span className={value ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}>
-          {value || placeholder || 'Select...'}
+          {formatDisplay(value) || 'mm/dd/yyyy'}
         </span>
         <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path strokeLinecap="round" d="M3 9h18M8 3v4M16 3v4" />
         </svg>
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-60 overflow-hidden">
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search or type new..."
-              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              autoFocus
-            />
+        <div className="kin-dropdown-popup kin-calendar" style={{ maxHeight: 'none', overflow: 'visible' }}>
+          <div className="kin-cal-head">
+            <button type="button" className="kin-cal-nav" onClick={prevMonth} aria-label="Previous month">
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <div className="kin-cal-title">{MONTHS[viewMonth]} {viewYear}</div>
+            <button type="button" className="kin-cal-nav" onClick={nextMonth} aria-label="Next month">
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
           </div>
-          <div className="overflow-y-auto max-h-44">
+          <div className="kin-cal-grid">
+            {WEEKDAYS.map(w => (
+              <div key={w} className="kin-cal-weekday">{w}</div>
+            ))}
+            {cells.map((cell, i) => {
+              const isToday = isSameDay(cell.date, today);
+              const isSelected = selected ? isSameDay(cell.date, selected) : false;
+              const cls = [
+                'kin-cal-day',
+                cell.muted ? 'muted' : '',
+                isToday ? 'today' : '',
+                isSelected ? 'selected' : '',
+              ].filter(Boolean).join(' ');
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={cls}
+                  onClick={() => { onChange(toISO(cell.date)); setIsOpen(false); }}
+                >
+                  {cell.date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+          <div className="kin-cal-foot">
             <button
               type="button"
-              onClick={() => { onChange(''); setIsOpen(false); setSearch(''); }}
-              className="w-full text-left px-3 py-2 text-sm text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              className="kin-cal-action"
+              onClick={() => { onChange(''); setIsOpen(false); }}
             >
-              -- None --
+              Clear
             </button>
-            {filtered.map(opt => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => { onChange(opt); setIsOpen(false); setSearch(''); }}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  opt === value
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-            {search.trim() && !options.includes(search.trim()) && (
-              <button
-                type="button"
-                onClick={() => { onChange(search.trim()); setIsOpen(false); setSearch(''); }}
-                className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-              >
-                Add "{search.trim()}"
-              </button>
-            )}
+            <button
+              type="button"
+              className="kin-cal-action"
+              onClick={() => { onChange(toISO(today)); setIsOpen(false); }}
+            >
+              Today
+            </button>
           </div>
         </div>
       )}
@@ -335,14 +415,14 @@ function ShiftSelect({ value, shifts, onChange, onShiftsChanged }: ShiftSelectPr
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-visible">
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="kin-dropdown-popup" style={{ overflow: 'visible' }}>
+          <div className="kin-dropdown-search">
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search shifts..."
-              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="kin-dropdown-search-input"
               autoFocus
             />
           </div>
@@ -416,13 +496,11 @@ function ShiftSelect({ value, shifts, onChange, onShiftsChanged }: ShiftSelectPr
                       className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={handleCreate}
-                    className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors">
+                <div className="hstack" style={{ gap: 8 }}>
+                  <button type="button" onClick={handleCreate} className="btn primary" style={{ flex: 1 }}>
                     Create
                   </button>
-                  <button type="button" onClick={() => setAdding(false)}
-                    className="flex-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                  <button type="button" onClick={() => setAdding(false)} className="btn ghost" style={{ flex: 1 }}>
                     Cancel
                   </button>
                 </div>
@@ -500,22 +578,19 @@ export default function EmployeeForm({ employee, onSave, onCancel }: EmployeeFor
                     onShiftsChanged={loadShifts}
                   />
                 ) : field.type === 'select' ? (
-                  <select
+                  <ComboSelect
                     value={form[field.key] || ''}
-                    onChange={e => handleChange(field.key, e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="">--</option>
-                    {field.options?.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                    options={field.options || []}
+                    onChange={v => handleChange(field.key, v)}
+                    placeholder="--"
+                  />
                 ) : field.type === 'lookup' ? (
                   <ComboSelect
                     value={form[field.key] || ''}
                     options={(lookups as any)[field.lookupKey] || []}
                     onChange={v => handleChange(field.key, v)}
                     placeholder={`Select ${field.label}...`}
+                    allowCustom
                   />
                 ) : field.type === 'multi-lookup' ? (
                   <MultiSelect
@@ -523,6 +598,11 @@ export default function EmployeeForm({ employee, onSave, onCancel }: EmployeeFor
                     options={(lookups as any)[field.lookupKey] || []}
                     onChange={v => handleChange(field.key, v)}
                     placeholder={`Select ${field.label}...`}
+                  />
+                ) : field.type === 'date' ? (
+                  <DatePicker
+                    value={form[field.key] || ''}
+                    onChange={v => handleChange(field.key, v)}
                   />
                 ) : (
                   <input
@@ -539,18 +619,11 @@ export default function EmployeeForm({ employee, onSave, onCancel }: EmployeeFor
         </div>
       ))}
 
-      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          type="submit"
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
+      <div className="hstack" style={{ gap: 12, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+        <button type="submit" className="btn primary">
           {employee ? 'Save Changes' : 'Create Employee'}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-        >
+        <button type="button" onClick={onCancel} className="btn ghost">
           Cancel
         </button>
       </div>

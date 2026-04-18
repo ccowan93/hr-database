@@ -3,6 +3,7 @@ import { api } from '../api';
 import CalendarGrid from '../components/CalendarGrid';
 import AttendanceDayDetail from '../components/AttendanceDayDetail';
 import AttendanceImportDialog from '../components/AttendanceImportDialog';
+import ComboSelect from '../components/ComboSelect';
 import type { AttendanceRecord, AttendanceSummary, ParsedAttendanceResult, AttendanceImportBatch, TimeOffRequest } from '../types/attendance';
 import type { Shift } from '../types/employee';
 
@@ -303,191 +304,171 @@ export default function AttendanceCalendar() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Attendance Calendar</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track employee attendance from CompuTime101 imports</p>
+          <h1 className="page-title">Attendance calendar</h1>
+          <p className="page-subtitle">Track employee attendance from CompuTime101 imports</p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowImports(!showImports)}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
-              </svg>
-              Manage Imports
-            </button>
-            <button
-              onClick={handleImport}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              Import Attendance
-            </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <div className="hstack">
+            <button onClick={() => setShowImports(!showImports)} className="btn">Manage imports</button>
+            <button onClick={handleImport} className="btn primary">Import attendance</button>
           </div>
-          <span className="text-xs text-gray-400 dark:text-gray-500">Expects WorkCodeDetail.xls from CompuTime101</span>
+          <span className="small muted">Expects WorkCodeDetail.xls from CompuTime101</span>
         </div>
       </div>
 
       {/* Manage Imports Panel */}
       {showImports && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Import Batches</h3>
-            <button onClick={() => setShowImports(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <div className="section-card" style={{ marginBottom: 18 }}>
+          <div className="section-head">
+            <h3 className="section-title">Import batches</h3>
+            <button onClick={() => setShowImports(false)} className="icon-btn" aria-label="Close">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          {imports.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No import batches found.</p>
-          ) : (
-            <div className="space-y-2">
-              {imports.map((imp: any) => (
-                <div key={imp.import_batch_id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {imp.record_count} records
+          <div className="section-body">
+            {imports.length === 0 ? (
+              <p className="muted small">No import batches found.</p>
+            ) : (
+              <div className="vstack" style={{ gap: 8 }}>
+                {imports.map((imp: any) => (
+                  <div key={imp.import_batch_id} className="flex-between" style={{
+                    background: 'var(--surface-2)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '10px 14px',
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{imp.record_count} records</div>
+                      <div className="small muted">
+                        {imp.start_date} to {imp.end_date} · Imported {new Date(imp.imported_at).toLocaleDateString()}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {imp.start_date} to {imp.end_date} &middot; Imported {new Date(imp.imported_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div>
                     {confirmDeleteBatch === imp.import_batch_id ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-red-600 dark:text-red-400">Delete {imp.record_count} records?</span>
+                      <div className="hstack" style={{ gap: 8 }}>
+                        <span className="small" style={{ color: 'var(--danger)' }}>Delete {imp.record_count} records?</span>
                         <button
                           onClick={() => handleDeleteBatch(imp.import_batch_id)}
                           disabled={deletingBatch}
-                          className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded disabled:opacity-50"
+                          className="btn"
+                          style={{ background: 'var(--danger)', color: 'white', borderColor: 'var(--danger)' }}
                         >
-                          {deletingBatch ? 'Deleting...' : 'Yes'}
+                          {deletingBatch ? 'Deleting…' : 'Yes'}
                         </button>
-                        <button
-                          onClick={() => setConfirmDeleteBatch(null)}
-                          className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded"
-                        >
-                          Cancel
-                        </button>
+                        <button onClick={() => setConfirmDeleteBatch(null)} className="btn">Cancel</button>
                       </div>
                     ) : (
                       <button
                         onClick={() => setConfirmDeleteBatch(imp.import_batch_id)}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        className="icon-btn"
                         title="Delete this import batch"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
                       </button>
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Employee Search Bar */}
-      <div className="relative" ref={searchRef}>
-        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search Employee</label>
-        <div className="relative">
-          <input
-            type="text"
-            value={employeeSearch}
-            onChange={e => {
-              setEmployeeSearch(e.target.value);
-              setShowSearchResults(e.target.value.length > 0);
-            }}
-            onFocus={() => { if (employeeSearch.length > 0) setShowSearchResults(true); }}
-            placeholder="Type to search employees..."
-            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 pr-8"
-          />
-          {employeeSearch && (
-            <button
-              onClick={() => {
-                setEmployeeSearch('');
-                setEmployeeId(null);
-                setShowSearchResults(false);
-              }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
-        {showSearchResults && employeeSearch.length > 0 && (() => {
-          const query = employeeSearch.toLowerCase();
-          const filtered = employees.filter(e => e.employee_name.toLowerCase().includes(query)).slice(0, 10);
-          return filtered.length > 0 ? (
-            <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              {filtered.map(emp => (
+      {/* Filters */}
+      <div className="card" style={{ padding: 14, marginBottom: 18 }}>
+        <div className="grid-3">
+          <div style={{ position: 'relative' }} ref={searchRef}>
+            <label className="field-label" style={{ marginBottom: 6, display: 'block' }}>Search employee</label>
+            <div className="input" style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={employeeSearch}
+                onChange={e => {
+                  setEmployeeSearch(e.target.value);
+                  setShowSearchResults(e.target.value.length > 0);
+                }}
+                onFocus={() => { if (employeeSearch.length > 0) setShowSearchResults(true); }}
+                placeholder="Type to search employees…"
+              />
+              {employeeSearch && (
                 <button
-                  key={emp.id}
                   onClick={() => {
-                    setEmployeeId(emp.id);
-                    setEmployeeSearch(emp.employee_name);
-                    setDepartment('');
+                    setEmployeeSearch('');
+                    setEmployeeId(null);
                     setShowSearchResults(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
+                  className="muted"
+                  style={{ border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                  aria-label="Clear"
                 >
-                  {emp.employee_name}
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              ))}
+              )}
             </div>
-          ) : null;
-        })()}
-      </div>
+            {showSearchResults && employeeSearch.length > 0 && (() => {
+              const query = employeeSearch.toLowerCase();
+              const filtered = employees.filter(e => e.employee_name.toLowerCase().includes(query)).slice(0, 10);
+              return filtered.length > 0 ? (
+                <div className="card" style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 240, overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+                  {filtered.map(emp => (
+                    <button
+                      key={emp.id}
+                      onClick={() => {
+                        setEmployeeId(emp.id);
+                        setEmployeeSearch(emp.employee_name);
+                        setDepartment('');
+                        setShowSearchResults(false);
+                      }}
+                      style={{ width: '100%', padding: '8px 12px', textAlign: 'left', border: 0, background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--ink)', fontFamily: 'inherit' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {emp.employee_name}
+                    </button>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Employee</label>
-          <select
-            value={employeeId || ''}
-            onChange={e => { setEmployeeId(e.target.value ? Number(e.target.value) : null); setDepartment(''); }}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-          >
-            <option value="">All Employees</option>
-            {employees.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department</label>
-          <select
-            value={department}
-            onChange={e => { setDepartment(e.target.value); setEmployeeId(null); setEmployeeSearch(''); }}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-          >
-            <option value="">All Departments</option>
-            {departments.map(dept => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
+          <label className="field">
+            <span className="field-label">Employee</span>
+            <ComboSelect
+              value={employeeId ? String(employeeId) : ''}
+              options={employees.map(emp => ({ value: String(emp.id), label: emp.employee_name }))}
+              onChange={v => { setEmployeeId(v ? Number(v) : null); setDepartment(''); }}
+              includeNone={true}
+              noneLabel="All employees"
+            />
+          </label>
+
+          <label className="field">
+            <span className="field-label">Department</span>
+            <ComboSelect
+              value={department}
+              options={departments}
+              onChange={v => { setDepartment(v); setEmployeeId(null); setEmployeeSearch(''); }}
+              includeNone={true}
+              noneLabel="All departments"
+            />
+          </label>
         </div>
       </div>
 
       {/* Salary Employee Notice */}
       {isSalaryEmployee && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-center gap-2">
-          <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <div className="banner" style={{ marginBottom: 18 }}>
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
-          <span className="text-sm text-amber-800 dark:text-amber-200">
+          <span>
             This is a salaried employee. Click a day to manually mark attendance flags (tardy, absent, left early, partial absence).
           </span>
         </div>
@@ -495,63 +476,63 @@ export default function AttendanceCalendar() {
 
       {/* Summary Stats */}
       {summary && (
-        <div className="grid grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{summary.days_present || 0}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Days Present</div>
+        <div className="stat-grid" style={{ marginBottom: 18 }}>
+          <div className="stat">
+            <div className="stat-label">Days present</div>
+            <div className="stat-value">{summary.days_present || 0}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{(summary.total_reg_hours || 0).toFixed(1)}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Regular Hours</div>
+          <div className="stat">
+            <div className="stat-label">Regular hours</div>
+            <div className="stat-value">{(summary.total_reg_hours || 0).toFixed(1)}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{(summary.total_ot_hours || 0).toFixed(1)}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Overtime Hours</div>
+          <div className="stat">
+            <div className="stat-label">Overtime hours</div>
+            <div className="stat-value">{(summary.total_ot_hours || 0).toFixed(1)}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.missing_punches || 0}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Missing Punches</div>
+          <div className="stat">
+            <div className="stat-label">Missing punches</div>
+            <div className="stat-value">{summary.missing_punches || 0}</div>
           </div>
         </div>
       )}
 
       {/* Month Navigation */}
-      <div className="flex items-center justify-between">
-        <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-          <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <div className="flex-between" style={{ marginBottom: 14 }}>
+        <button onClick={handlePrevMonth} className="icon-btn" aria-label="Previous month">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
         </button>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 400, margin: 0, letterSpacing: '-0.01em', color: 'var(--ink)' }}>
           {MONTH_NAMES[month]} {year}
         </h2>
-        <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-          <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <button onClick={handleNextMonth} className="icon-btn" aria-label="Next month">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
-        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Present</div>
-        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" /> Missing Punch</div>
-        <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Time Off</div>
+      <div className="hstack small muted" style={{ gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+        <span className="hstack" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 99, background: 'var(--success)' }} /> Present</span>
+        <span className="hstack" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 99, background: 'var(--warn)' }} /> Missing punch</span>
+        <span className="hstack" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 99, background: 'var(--info)' }} /> Time off</span>
         {employeeId && (
           <>
-            <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Absent</div>
-            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-amber-600 bg-amber-50">T</span> Tardy</div>
-            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-orange-600 bg-orange-50">E</span> Left Early</div>
-            <div className="flex items-center gap-1"><span className="text-[9px] font-bold px-1 rounded text-purple-600 bg-purple-50">L</span> Long Lunch</div>
+            <span className="hstack" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 99, background: 'var(--danger)' }} /> Absent</span>
+            <span className="hstack" style={{ gap: 6 }}><span className="badge warn" style={{ padding: '0 5px', fontSize: 10 }}>T</span> Tardy</span>
+            <span className="hstack" style={{ gap: 6 }}><span className="badge warn" style={{ padding: '0 5px', fontSize: 10 }}>E</span> Left early</span>
+            <span className="hstack" style={{ gap: 6 }}><span className="badge accent" style={{ padding: '0 5px', fontSize: 10 }}>L</span> Long lunch</span>
           </>
         )}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading attendance data...</div>
+        <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Loading attendance data…</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
+        <div className="grid-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
+          <div>
             <CalendarGrid
               year={year}
               month={month}
@@ -563,7 +544,7 @@ export default function AttendanceCalendar() {
           </div>
           <div>
             {selectedDate ? (
-              <div className="space-y-4">
+              <div className="vstack" style={{ gap: 14 }}>
                 <AttendanceDayDetail
                   date={selectedDate}
                   records={selectedRecords}
@@ -573,66 +554,68 @@ export default function AttendanceCalendar() {
                   onDeleteRecords={handleDeleteRecords}
                 />
 
-                {/* Salary Manual Flags Panel */}
                 {isSalaryEmployee && employeeId && (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Attendance Flags</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Toggle flags for this day:</p>
-                    <div className="space-y-2">
-                      {SALARY_FLAG_TYPES.map(ft => {
-                        const isActive = selectedFlags.includes(ft.key);
-                        return (
-                          <button
-                            key={ft.key}
-                            onClick={() => handleToggleSalaryFlag(ft.key)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                              isActive
-                                ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-                                : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            <span className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs ${
-                              isActive
-                                ? 'bg-red-500 border-red-500 text-white'
-                                : 'border-gray-300 dark:border-gray-500'
-                            }`}>
-                              {isActive && '✓'}
-                            </span>
-                            {ft.label}
-                          </button>
-                        );
-                      })}
+                  <div className="section-card">
+                    <div className="section-head"><h3 className="section-title">Attendance flags</h3></div>
+                    <div className="section-body">
+                      <p className="small muted" style={{ marginTop: 0, marginBottom: 10 }}>Toggle flags for this day:</p>
+                      <div className="vstack" style={{ gap: 6 }}>
+                        {SALARY_FLAG_TYPES.map(ft => {
+                          const isActive = selectedFlags.includes(ft.key);
+                          return (
+                            <button
+                              key={ft.key}
+                              onClick={() => handleToggleSalaryFlag(ft.key)}
+                              className="chip"
+                              aria-pressed={isActive}
+                              style={{
+                                justifyContent: 'flex-start',
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 'var(--radius-sm)',
+                              }}
+                            >
+                              <span style={{
+                                width: 16, height: 16, borderRadius: 4,
+                                border: '1.5px solid ' + (isActive ? 'var(--danger)' : 'var(--line-strong)'),
+                                background: isActive ? 'var(--danger)' : 'transparent',
+                                color: 'white',
+                                display: 'grid', placeItems: 'center',
+                                fontSize: 10,
+                              }}>
+                                {isActive && '✓'}
+                              </span>
+                              {ft.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Auto-computed flags display for hourly employees */}
                 {!isSalaryEmployee && employeeId && selectedFlags.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Attendance Flags</h3>
-                    <div className="space-y-1">
-                      {selectedFlags.map((flag: string) => {
-                        const labels: Record<string, { label: string; color: string }> = {
-                          tardy: { label: 'Tardy', color: 'text-amber-600 dark:text-amber-400' },
-                          absent: { label: 'Absent', color: 'text-red-600 dark:text-red-400' },
-                          left_early: { label: 'Left Early', color: 'text-orange-600 dark:text-orange-400' },
-                          long_lunch: { label: 'Long Lunch', color: 'text-purple-600 dark:text-purple-400' },
-                        };
-                        const cfg = labels[flag] || { label: flag, color: 'text-gray-600' };
-                        return (
-                          <div key={flag} className={`text-sm font-medium ${cfg.color} flex items-center gap-2`}>
-                            <span className="w-2 h-2 rounded-full bg-current" />
-                            {cfg.label}
-                          </div>
-                        );
-                      })}
+                  <div className="section-card">
+                    <div className="section-head"><h3 className="section-title">Attendance flags</h3></div>
+                    <div className="section-body">
+                      <div className="vstack" style={{ gap: 6 }}>
+                        {selectedFlags.map((flag: string) => {
+                          const labels: Record<string, string> = {
+                            tardy: 'Tardy',
+                            absent: 'Absent',
+                            left_early: 'Left Early',
+                            long_lunch: 'Long Lunch',
+                          };
+                          return <span key={flag} className="badge warn">{labels[flag] || flag}</span>;
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                Click a day to view punch details
+              <div className="card" style={{ padding: 24, textAlign: 'center' }}>
+                <p className="muted small" style={{ margin: 0 }}>Click a day to view punch details</p>
               </div>
             )}
           </div>

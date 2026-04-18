@@ -210,6 +210,9 @@ const electronAPI = {
     ipcRenderer.invoke('bug:save-report', data),
   bugGetGithubUrl: (data: { description?: string; summary?: string }) =>
     ipcRenderer.invoke('bug:get-github-url', data),
+  bugRelayConfigured: () => ipcRenderer.invoke('bug:relay-configured'),
+  bugSubmitToRelay: (data: { description: string; email?: string; stepsToReproduce?: string; includeLogs?: boolean }) =>
+    ipcRenderer.invoke('bug:submit-to-relay', data),
   logRenderer: (level: 'error' | 'warn' | 'info', message: string) =>
     ipcRenderer.send('log:renderer', { level, message }),
 

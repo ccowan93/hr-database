@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { app } from 'electron';
 
 export interface AppConfig {
+  installId: string;
   onedrive: {
     enabled: boolean;
     accountName: string | null;
@@ -35,6 +37,7 @@ export interface AppConfig {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
+  installId: '',
   onedrive: {
     enabled: false,
     accountName: null,
@@ -90,6 +93,13 @@ export function loadConfig(): AppConfig {
   } catch (err) {
     console.error('Failed to load config:', err);
     config = { ...DEFAULT_CONFIG };
+  }
+  // Ensure every install has a stable random ID — used by the bug relay to
+  // rate-limit submissions per device without requiring a user account.
+  if (!config.installId) {
+    config.installId = crypto.randomUUID();
+    try { fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2)); }
+    catch (err) { console.error('Failed to persist installId:', err); }
   }
   return config;
 }

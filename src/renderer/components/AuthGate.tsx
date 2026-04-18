@@ -12,15 +12,15 @@ const MIN_PASSWORD_LENGTH = 6;
 
 function LockIcon() {
   return (
-    <svg className="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <svg style={{ width: 22, height: 22, color: 'var(--accent-ink)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
     </svg>
   );
 }
 
-function FingerprintIcon({ className = 'w-5 h-5' }: { className?: string }) {
+function FingerprintIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+    <svg style={{ width: size, height: size }} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.597a18.666 18.666 0 01-2.485 5.33" />
     </svg>
   );
@@ -64,7 +64,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Auto-prompt Touch ID on first render of unlock screen
   useEffect(() => {
     if (!status || status.configured === false || unlocked) return;
     if (!status.touchIdEnabled || touchIdAttempted.current) return;
@@ -78,10 +77,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [status, unlocked]);
 
+  const shellStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    background: 'var(--bg)',
+    padding: 24,
+  };
+
   if (!status) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+      <div style={shellStyle}>
+        <div className="small muted">Loading…</div>
       </div>
     );
   }
@@ -135,47 +143,66 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const containerClass = 'flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900 p-6';
-  const cardClass = 'w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8';
-  const inputClass = 'w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const primaryButtonClass = 'w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed';
+  const cardStyle: React.CSSProperties = {
+    width: '100%',
+    maxWidth: 440,
+    padding: 32,
+  };
+
+  const iconWrapStyle: React.CSSProperties = {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    background: 'var(--accent-soft)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  };
+
+  const errorBanner = (
+    <div className="banner" style={{ borderColor: 'color-mix(in oklch, var(--danger) 40%, transparent)', background: 'color-mix(in oklch, var(--danger) 10%, var(--surface))', color: 'var(--danger)' }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} style={{ width: 16, height: 16, flexShrink: 0 }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+      <span style={{ fontSize: 13 }}>{error}</span>
+    </div>
+  );
 
   if (!status.configured) {
     return (
-      <div className={containerClass}>
-        <div className={cardClass}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-              <LockIcon />
-            </div>
+      <div style={shellStyle}>
+        <div className="card" style={cardStyle}>
+          <div className="hstack" style={{ gap: 14, marginBottom: 22 }}>
+            <div style={iconWrapStyle}><LockIcon /></div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Set up app password</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Protect access to employee data on this device</p>
+              <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.01em', color: 'var(--ink)' }}>Set up app password</h1>
+              <p className="small muted" style={{ margin: '2px 0 0' }}>Protect access to employee data on this device</p>
             </div>
           </div>
 
-          <form onSubmit={handleSetup} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New password</label>
+          <form onSubmit={handleSetup} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="field">
+              <label className="field-label">New password</label>
               <input
                 ref={passwordInputRef}
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className={inputClass}
+                className="input"
                 placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                 autoComplete="new-password"
                 disabled={busy}
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm password</label>
+            <div className="field">
+              <label className="field-label">Confirm password</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                className={inputClass}
+                className="input"
                 placeholder="Re-enter password"
                 autoComplete="new-password"
                 disabled={busy}
@@ -183,31 +210,38 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             </div>
 
             {status.touchIdAvailable && (
-              <label className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900/40 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer">
+              <label
+                className="hstack"
+                style={{
+                  gap: 10,
+                  padding: 12,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  alignItems: 'flex-start',
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={enableTouchId}
                   onChange={e => setEnableTouchId(e.target.checked)}
                   disabled={busy}
-                  className="mt-0.5 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  style={{ marginTop: 2 }}
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                    <FingerprintIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <div style={{ flex: 1 }}>
+                  <div className="hstack" style={{ gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>
+                    <FingerprintIcon size={14} />
                     Enable Touch ID
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Use your fingerprint to unlock the app instead of typing the password.</p>
+                  <p className="small muted" style={{ margin: '2px 0 0' }}>Use your fingerprint to unlock the app instead of typing the password.</p>
                 </div>
               </label>
             )}
 
-            {error && (
-              <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
-                {error}
-              </div>
-            )}
+            {error && errorBanner}
 
-            <button type="submit" disabled={busy} className={primaryButtonClass}>
+            <button type="submit" disabled={busy} className="btn primary" style={{ justifyContent: 'center', padding: '10px 16px' }}>
               {busy ? 'Saving…' : 'Create password'}
             </button>
           </form>
@@ -217,40 +251,34 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={containerClass}>
-      <div className={cardClass}>
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-            <LockIcon />
-          </div>
+    <div style={shellStyle}>
+      <div className="card" style={cardStyle}>
+        <div className="hstack" style={{ gap: 14, marginBottom: 22 }}>
+          <div style={iconWrapStyle}><LockIcon /></div>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Unlock HR Database</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Enter your app password to continue</p>
+            <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.01em', color: 'var(--ink)' }}>Unlock HR Database</h1>
+            <p className="small muted" style={{ margin: '2px 0 0' }}>Enter your app password to continue</p>
           </div>
         </div>
 
-        <form onSubmit={handleUnlock} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+        <form onSubmit={handleUnlock} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="field">
+            <label className="field-label">Password</label>
             <input
               ref={passwordInputRef}
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className={inputClass}
+              className="input"
               placeholder="App password"
               autoComplete="current-password"
               disabled={busy}
             />
           </div>
 
-          {error && (
-            <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
-              {error}
-            </div>
-          )}
+          {error && errorBanner}
 
-          <button type="submit" disabled={busy || !password} className={primaryButtonClass}>
+          <button type="submit" disabled={busy || !password} className="btn primary" style={{ justifyContent: 'center', padding: '10px 16px' }}>
             {busy ? 'Unlocking…' : 'Unlock'}
           </button>
 
@@ -259,7 +287,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={handleTouchIdUnlock}
               disabled={busy}
-              className="w-full px-4 py-2.5 flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn"
+              style={{ justifyContent: 'center', padding: '10px 16px', gap: 8 }}
             >
               <FingerprintIcon />
               Use Touch ID

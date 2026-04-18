@@ -115,32 +115,42 @@ export default function GlobalSearch() {
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div
+          className="absolute top-full left-0 right-0 mt-1 overflow-hidden z-50 max-h-96 overflow-y-auto"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
           {results.map((result, i) => (
             <button
               key={result.id}
               onClick={() => selectResult(result)}
               onMouseEnter={() => setSelectedIndex(i)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                i === selectedIndex
-                  ? 'bg-blue-50 dark:bg-blue-900/30'
-                  : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-              }`}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+              style={{
+                background: i === selectedIndex ? 'var(--accent-soft)' : 'transparent',
+              }}
             >
               {photoCache[result.id] ? (
                 <img src={photoCache[result.id]!} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                >
                   {getInitials(result.employee_name)}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{result.employee_name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-sm font-medium truncate" style={{ color: 'var(--ink)' }}>{result.employee_name}</p>
+                <p className="text-xs truncate" style={{ color: 'var(--ink-3)' }}>
                   {result.current_position}{result.current_department ? ` — ${result.current_department}` : ''}
                 </p>
               </div>
-              <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">#{result.id}</span>
+              <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink-4)' }}>#{result.id}</span>
             </button>
           ))}
         </div>

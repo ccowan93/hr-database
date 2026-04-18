@@ -194,6 +194,9 @@ declare global {
       bugSaveReport: (data: { description: string; email?: string; stepsToReproduce?: string; includeLogs?: boolean }) =>
         Promise<{ success: boolean; path?: string; error?: string; cancelled?: boolean }>;
       bugGetGithubUrl: (data: { description?: string; summary?: string }) => Promise<string>;
+      bugRelayConfigured: () => Promise<boolean>;
+      bugSubmitToRelay: (data: { description: string; email?: string; stepsToReproduce?: string; includeLogs?: boolean }) =>
+        Promise<{ success: boolean; issueUrl?: string; issueNumber?: number; gistUrl?: string | null; error?: string }>;
       logRenderer: (level: 'error' | 'warn' | 'info', message: string) => void;
 
       onUpdateDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => () => void;

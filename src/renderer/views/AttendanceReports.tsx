@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { api } from '../api';
+import ComboSelect from '../components/ComboSelect';
 import type { OvertimeReportEntry, AbsenteeismReportEntry, TardinessReportEntry, LeftEarlyReportEntry, LunchDurationEntry, TimeOffUsageEntry } from '../types/attendance';
 
 type ReportTab = 'overtime' | 'absenteeism' | 'tardiness' | 'leftearly' | 'lunch' | 'timeoff';
@@ -124,23 +125,21 @@ export default function AttendanceReports() {
   );
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Attendance Reports</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Analyze attendance metrics and trends</p>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Attendance reports</h1>
+          <p className="page-subtitle">Analyze attendance metrics and trends</p>
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+      <div className="tab-row">
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
+            className="tab"
+            aria-selected={activeTab === tab.key}
           >
             {tab.label}
           </button>
@@ -148,133 +147,124 @@ export default function AttendanceReports() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-        <div className="flex items-end gap-4">
+      <div className="card" style={{ padding: 14, marginBottom: 18 }}>
+        <div className="hstack" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {activeTab !== 'timeoff' ? (
             <>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                />
-              </div>
+              <label className="field">
+                <span className="field-label">Start date</span>
+                <input className="input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="field-label">End date</span>
+                <input className="input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              </label>
               {activeTab === 'overtime' && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Group By</label>
-                  <select
+                <label className="field">
+                  <span className="field-label">Group by</span>
+                  <ComboSelect
                     value={groupBy}
-                    onChange={e => setGroupBy(e.target.value as any)}
-                    className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="department">Department</option>
-                  </select>
-                </div>
+                    options={[{ value: 'employee', label: 'Employee' }, { value: 'department', label: 'Department' }]}
+                    onChange={v => setGroupBy((v || 'employee') as 'employee' | 'department')}
+                    includeNone={false}
+                    searchable={false}
+                  />
+                </label>
               )}
             </>
           ) : (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Year</label>
-              <select
-                value={year}
-                onChange={e => setYear(Number(e.target.value))}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-              >
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
+            <label className="field">
+              <span className="field-label">Year</span>
+              <ComboSelect
+                value={String(year)}
+                options={Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => ({ value: String(y), label: String(y) }))}
+                onChange={v => setYear(Number(v) || new Date().getFullYear())}
+                includeNone={false}
+                searchable={false}
+              />
+            </label>
           )}
 
-          {/* Department Filter */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department</label>
-            <select
+          <label className="field">
+            <span className="field-label">Department</span>
+            <ComboSelect
               value={selectedDepartment}
-              onChange={e => { setSelectedDepartment(e.target.value); setSelectedEmployeeIds([]); }}
-              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100"
-            >
-              <option value="">All Departments</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
+              options={departments}
+              onChange={v => { setSelectedDepartment(v); setSelectedEmployeeIds([]); }}
+              includeNone={true}
+              noneLabel="All departments"
+            />
+          </label>
 
-          {/* Employee Multi-Select */}
-          <div className="relative" ref={employeeDropdownRef}>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Employees</label>
+          <div style={{ position: 'relative' }} ref={employeeDropdownRef}>
+            <div className="field-label" style={{ marginBottom: 6 }}>Employees</div>
             <button
               onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
-              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 min-w-[180px] text-left flex items-center justify-between gap-2"
+              className="input"
+              style={{ minWidth: 180, cursor: 'pointer', justifyContent: 'space-between' }}
             >
-              <span className="truncate">
+              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedEmployeeIds.length === 0
-                  ? 'All Employees'
+                  ? 'All employees'
                   : selectedEmployeeIds.length === 1
                     ? employees.find(e => e.id === selectedEmployeeIds[0])?.employee_name || '1 selected'
-                    : `${selectedEmployeeIds.length} selected`
-                }
+                    : `${selectedEmployeeIds.length} selected`}
               </span>
-              <svg className={`w-4 h-4 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ transform: showEmployeeDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 120ms' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
             </button>
             {showEmployeeDropdown && (
-              <div className="absolute z-30 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-                <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="card" style={{ position: 'absolute', zIndex: 30, top: '100%', left: 0, marginTop: 4, width: 288, boxShadow: 'var(--shadow-lg)' }}>
+                <div style={{ padding: 8, borderBottom: '1px solid var(--line)' }}>
                   <input
+                    className="input"
                     type="text"
                     value={employeeSearch}
                     onChange={e => setEmployeeSearch(e.target.value)}
-                    placeholder="Search employees..."
-                    className="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm text-gray-900 dark:text-gray-100"
+                    placeholder="Search employees…"
                     autoFocus
                   />
                 </div>
-                <div className="max-h-60 overflow-y-auto p-1">
-                  {filteredDropdownEmployees.map(emp => (
-                    <button
-                      key={emp.id}
-                      onClick={() => toggleEmployee(emp.id)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-gray-700 rounded transition-colors"
-                    >
-                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] ${
-                        selectedEmployeeIds.includes(emp.id)
-                          ? 'bg-blue-500 border-blue-500 text-white'
-                          : 'border-gray-300 dark:border-gray-500'
-                      }`}>
-                        {selectedEmployeeIds.includes(emp.id) && '✓'}
-                      </span>
-                      <span className="flex-1 truncate">{emp.employee_name}</span>
-                      {emp.current_department && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{emp.current_department}</span>
-                      )}
-                    </button>
-                  ))}
+                <div style={{ maxHeight: 240, overflow: 'auto', padding: 4 }}>
+                  {filteredDropdownEmployees.map(emp => {
+                    const checked = selectedEmployeeIds.includes(emp.id);
+                    return (
+                      <button
+                        key={emp.id}
+                        onClick={() => toggleEmployee(emp.id)}
+                        className="hstack"
+                        style={{
+                          width: '100%', gap: 8, padding: '6px 8px',
+                          fontSize: 13, color: 'var(--ink)', cursor: 'pointer',
+                          border: 0, background: 'transparent', borderRadius: 4,
+                          textAlign: 'left', fontFamily: 'inherit',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <span style={{
+                          width: 14, height: 14, borderRadius: 3,
+                          border: '1.5px solid ' + (checked ? 'var(--accent)' : 'var(--line-strong)'),
+                          background: checked ? 'var(--accent)' : 'transparent',
+                          color: 'white',
+                          display: 'grid', placeItems: 'center', fontSize: 9,
+                          flexShrink: 0,
+                        }}>
+                          {checked && '✓'}
+                        </span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{emp.employee_name}</span>
+                        {emp.current_department && <span className="small muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{emp.current_department}</span>}
+                      </button>
+                    );
+                  })}
                   {filteredDropdownEmployees.length === 0 && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No employees found.</p>
+                    <p className="small muted" style={{ padding: 8, margin: 0 }}>No employees found.</p>
                   )}
                 </div>
                 {selectedEmployeeIds.length > 0 && (
-                  <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => setSelectedEmployeeIds([])}
-                      className="w-full px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    >
+                  <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}>
+                    <button onClick={() => setSelectedEmployeeIds([])} className="btn ghost small" style={{ width: '100%', justifyContent: 'center' }}>
                       Clear selection
                     </button>
                   </div>
@@ -284,25 +274,20 @@ export default function AttendanceReports() {
           </div>
 
           {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              Clear Filters
-            </button>
+            <button onClick={clearFilters} className="btn ghost">Clear filters</button>
           )}
         </div>
 
         {/* Selected employees pills */}
         {selectedEmployeeIds.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="hstack" style={{ gap: 4, flexWrap: 'wrap', marginTop: 10 }}>
             {selectedEmployeeIds.map(id => {
               const emp = employees.find(e => e.id === id);
               return emp ? (
-                <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-xs">
+                <span key={id} className="badge accent" style={{ gap: 4 }}>
                   {emp.employee_name}
-                  <button onClick={() => toggleEmployee(id)} className="hover:text-blue-600 dark:hover:text-blue-100">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <button onClick={() => toggleEmployee(id)} style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                    <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -315,7 +300,7 @@ export default function AttendanceReports() {
 
       {/* Report Content */}
       {loading ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading report...</div>
+        <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Loading report…</div>
       ) : (
         <div className="space-y-4">
           {activeTab === 'overtime' && <OvertimeReport data={overtimeData} groupBy={groupBy} />}
@@ -335,8 +320,8 @@ function OvertimeReport({ data, groupBy }: { data: OvertimeReportEntry[]; groupB
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Overtime Hours by {groupBy === 'department' ? 'Department' : 'Employee'}</h3>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="section-title" style={{ marginBottom: 14 }}>Overtime Hours by {groupBy === 'department' ? 'Department' : 'Employee'}</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.slice(0, 20)}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
@@ -377,8 +362,8 @@ function AbsenteeismReport({ data }: { data: AbsenteeismReportEntry[] }) {
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Attendance vs Absence</h3>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="section-title" style={{ marginBottom: 14 }}>Attendance vs Absence</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
@@ -414,8 +399,8 @@ function TardinessReport({ data }: { data: TardinessReportEntry[] }) {
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Late Arrivals by Employee</h3>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="section-title" style={{ marginBottom: 14 }}>Late Arrivals by Employee</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.slice(0, 20)}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
@@ -447,8 +432,8 @@ function LeftEarlyReport({ data }: { data: LeftEarlyReportEntry[] }) {
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Early Departures by Employee</h3>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="section-title" style={{ marginBottom: 14 }}>Early Departures by Employee</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.slice(0, 20)}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
@@ -492,8 +477,8 @@ function LunchReport({ data }: { data: LunchDurationEntry[] }) {
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Average Lunch Duration by Employee (minutes)</h3>
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <h3 className="section-title" style={{ marginBottom: 14 }}>Average Lunch Duration by Employee (minutes)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
@@ -540,8 +525,8 @@ function TimeOffUsageReport({ data }: { data: TimeOffUsageEntry[] }) {
 
 function EmptyState() {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-      <p className="text-gray-500 dark:text-gray-400">No data available for the selected criteria.</p>
+    <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+      <p className="muted" style={{ margin: 0 }}>No data available for the selected criteria.</p>
     </div>
   );
 }
@@ -556,17 +541,12 @@ interface Column {
 
 function DataTable({ columns, data }: { columns: Column[]; data: any[] }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <table className="w-full">
+    <div className="card" style={{ overflow: 'hidden' }}>
+      <table className="kin-table">
         <thead>
-          <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+          <tr>
             {columns.map(col => (
-              <th
-                key={col.key}
-                className={`px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
-                  col.align === 'right' ? 'text-right' : 'text-left'
-                }`}
-              >
+              <th key={col.key} style={{ textAlign: col.align === 'right' ? 'right' : 'left' }}>
                 {col.label}
               </th>
             ))}
@@ -574,14 +554,9 @@ function DataTable({ columns, data }: { columns: Column[]; data: any[] }) {
         </thead>
         <tbody>
           {data.map((row, i) => (
-            <tr key={i} className="border-b border-gray-100 dark:border-gray-700/50">
+            <tr key={i}>
               {columns.map(col => (
-                <td
-                  key={col.key}
-                  className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${
-                    col.align === 'right' ? 'text-right' : 'text-left'
-                  }`}
-                >
+                <td key={col.key} style={{ textAlign: col.align === 'right' ? 'right' : 'left' }}>
                   {col.compute
                     ? col.compute(row)
                     : col.format

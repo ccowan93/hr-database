@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ComboSelect from './ComboSelect';
 
 interface FilterBarProps {
   search: string;
@@ -39,137 +40,152 @@ export default function FilterBar({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const hasAdvancedFilters = dohFrom || dohTo || payMin || payMax || ageMin || ageMax || countryOfOrigin;
+  const hasAnyFilter = search || department || supervisoryRole || hasAdvancedFilters;
 
   return (
-    <div className="mb-6 space-y-3">
-      <div className="flex flex-wrap gap-4">
-        <input
-          type="text"
-          placeholder="Search by name or position..."
-          value={search}
-          onChange={e => onSearchChange(e.target.value)}
-          className="flex-1 min-w-[250px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-200"
-        />
-        <select
-          value={department}
-          onChange={e => onDepartmentChange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
-        >
-          <option value="">All Departments</option>
-          {departments.map(d => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-        <select
-          value={supervisoryRole}
-          onChange={e => onSupervisoryRoleChange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
-        >
-          <option value="">All Roles</option>
-          <option value="Y">Supervisory</option>
-          <option value="N">Non-Supervisory</option>
-        </select>
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
-            showAdvanced || hasAdvancedFilters
-              ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-500'
-              : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-        >
-          {showAdvanced ? 'Hide Filters' : 'Advanced Filters'}
-          {hasAdvancedFilters && !showAdvanced ? ' *' : ''}
-        </button>
-        {(search || department || supervisoryRole || hasAdvancedFilters) && (
+    <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="card" style={{ padding: 14 }}>
+        <div className="grid-3">
+          <label className="field">
+            <span className="field-label">Search</span>
+            <input
+              type="text"
+              className="input"
+              placeholder="Name or position…"
+              value={search}
+              onChange={e => onSearchChange(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Department</span>
+            <ComboSelect
+              value={department}
+              options={departments}
+              onChange={onDepartmentChange}
+              includeNone={true}
+              noneLabel="All departments"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Role</span>
+            <ComboSelect
+              value={supervisoryRole}
+              options={[
+                { value: 'Y', label: 'Supervisory' },
+                { value: 'N', label: 'Non-supervisory' },
+              ]}
+              onChange={onSupervisoryRoleChange}
+              includeNone={true}
+              noneLabel="All roles"
+              searchable={false}
+            />
+          </label>
+        </div>
+        <div className="hstack" style={{ marginTop: 12, justifyContent: 'flex-end', gap: 8 }}>
           <button
-            onClick={onClearFilters}
-            className="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={`btn${showAdvanced || hasAdvancedFilters ? ' accent' : ''}`}
           >
-            Clear All
+            {showAdvanced ? 'Hide filters' : 'Advanced filters'}
+            {hasAdvancedFilters && !showAdvanced ? ' *' : ''}
           </button>
-        )}
+          {hasAnyFilter && (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="btn ghost"
+              style={{ color: 'var(--danger)' }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       {showAdvanced && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Country of Origin</label>
-              <select
+        <div className="card" style={{ padding: 14 }}>
+          <div className="grid-2" style={{ gap: 14 }}>
+            <label className="field">
+              <span className="field-label">Country of origin</span>
+              <ComboSelect
                 value={countryOfOrigin}
-                onChange={e => onCountryOfOriginChange(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
-              >
-                <option value="">All Countries</option>
-                {countries.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+                options={countries}
+                onChange={onCountryOfOriginChange}
+                includeNone={true}
+                noneLabel="All countries"
+              />
+            </label>
 
-            <div className="flex-1 min-w-[220px]">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Hire Date Range</label>
-              <div className="flex items-center gap-2">
+            <div className="field">
+              <span className="field-label">Hire date range</span>
+              <div className="hstack" style={{ gap: 8 }}>
                 <input
                   type="date"
+                  className="input"
                   value={dohFrom}
                   onChange={e => onDohFromChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
+                  style={{ flex: 1 }}
                 />
-                <span className="text-gray-400 dark:text-gray-500 text-xs">to</span>
+                <span className="small muted">to</span>
                 <input
                   type="date"
+                  className="input"
                   value={dohTo}
                   onChange={e => onDohToChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
+                  style={{ flex: 1 }}
                 />
               </div>
             </div>
 
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Pay Rate Range</label>
-              <div className="flex items-center gap-2">
+            <div className="field">
+              <span className="field-label">Pay rate range</span>
+              <div className="hstack" style={{ gap: 8 }}>
                 <input
                   type="number"
                   placeholder="Min"
+                  className="input"
                   value={payMin}
                   onChange={e => onPayMinChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
                   min="0"
                   step="0.01"
+                  style={{ flex: 1 }}
                 />
-                <span className="text-gray-400 dark:text-gray-500 text-xs">to</span>
+                <span className="small muted">to</span>
                 <input
                   type="number"
                   placeholder="Max"
+                  className="input"
                   value={payMax}
                   onChange={e => onPayMaxChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
                   min="0"
                   step="0.01"
+                  style={{ flex: 1 }}
                 />
               </div>
             </div>
 
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Age Range</label>
-              <div className="flex items-center gap-2">
+            <div className="field">
+              <span className="field-label">Age range</span>
+              <div className="hstack" style={{ gap: 8 }}>
                 <input
                   type="number"
                   placeholder="Min"
+                  className="input"
                   value={ageMin}
                   onChange={e => onAgeMinChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
                   min="0"
+                  style={{ flex: 1 }}
                 />
-                <span className="text-gray-400 dark:text-gray-500 text-xs">to</span>
+                <span className="small muted">to</span>
                 <input
                   type="number"
                   placeholder="Max"
+                  className="input"
                   value={ageMax}
                   onChange={e => onAgeMaxChange(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
                   min="0"
+                  style={{ flex: 1 }}
                 />
               </div>
             </div>

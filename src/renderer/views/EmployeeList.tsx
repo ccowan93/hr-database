@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { Employee, EmployeeFilters } from '../types/employee';
 import FilterBar from '../components/FilterBar';
+import ComboSelect from '../components/ComboSelect';
 
 const BULK_FIELDS = [
   { key: 'current_department', label: 'Department', type: 'department' },
@@ -195,46 +196,30 @@ export default function EmployeeList() {
   ];
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-          {filters.status === 'archived' ? 'Archived Employees' : 'Employees'}
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">
+            {filters.status === 'archived' ? 'Archived people' : 'People'}
+          </h1>
+          <p className="page-subtitle">{employees.length} records</p>
+        </div>
+        <div className="hstack" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           {selectedIds.size > 0 && (
-            <button
-              onClick={() => setShowBulkEdit(true)}
-              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
-            >
-              Bulk Edit ({selectedIds.size})
+            <button onClick={() => setShowBulkEdit(true)} className="btn accent">
+              Bulk edit ({selectedIds.size})
             </button>
           )}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
-          >
-            {exporting ? 'Exporting...' : 'Export Excel'}
+          <button onClick={handleExport} disabled={exporting} className="btn">
+            {exporting ? 'Exporting…' : 'Export Excel'}
           </button>
-          <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
-            <button
-              onClick={() => setFilters(prev => ({ ...prev, status: 'active' }))}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                filters.status === 'active' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200'
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setFilters(prev => ({ ...prev, status: 'archived' }))}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                filters.status === 'archived' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-200'
-              }`}
-            >
-              Archived
-            </button>
+          <button onClick={() => navigate('/employees/new')} className="btn primary">
+            Add employee
+          </button>
+          <div className="seg seg-inline" role="tablist" aria-label="Status filter">
+            <button aria-pressed={filters.status === 'active'} onClick={() => setFilters(prev => ({ ...prev, status: 'active' }))}>Active</button>
+            <button aria-pressed={filters.status === 'archived'} onClick={() => setFilters(prev => ({ ...prev, status: 'archived' }))}>Archived</button>
           </div>
-          <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{employees.length} records</span>
         </div>
       </div>
 
@@ -267,91 +252,74 @@ export default function EmployeeList() {
         onClearFilters={handleClearFilters}
       />
 
-      {/* Bulk Edit Modal */}
       {showBulkEdit && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowBulkEdit(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-              Bulk Edit {selectedIds.size} Employee{selectedIds.size > 1 ? 's' : ''}
+        <div className="modal-backdrop" onClick={() => setShowBulkEdit(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">
+              Bulk edit {selectedIds.size} {selectedIds.size > 1 ? 'people' : 'person'}
             </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Field to Update</label>
-                <select
+            <div className="vstack" style={{ gap: 12 }}>
+              <label className="field">
+                <span className="field-label">Field to update</span>
+                <ComboSelect
                   value={bulkField}
-                  onChange={e => { setBulkField(e.target.value); setBulkValue(''); }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200"
-                >
-                  <option value="">Select a field...</option>
-                  {BULK_FIELDS.map(f => (
-                    <option key={f.key} value={f.key}>{f.label}</option>
-                  ))}
-                </select>
-              </div>
+                  options={BULK_FIELDS.map(f => ({ value: f.key, label: f.label }))}
+                  onChange={v => { setBulkField(v); setBulkValue(''); }}
+                  placeholder="Select a field…"
+                  includeNone={true}
+                  noneLabel="Select a field…"
+                />
+              </label>
               {bulkField && (() => {
                 const fieldDef = BULK_FIELDS.find(f => f.key === bulkField);
                 if (!fieldDef) return null;
                 if (fieldDef.type === 'select') {
                   return (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">New Value</label>
-                      <select
+                    <label className="field">
+                      <span className="field-label">New value</span>
+                      <ComboSelect
                         value={bulkValue}
-                        onChange={e => setBulkValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200"
-                      >
-                        <option value="">--</option>
-                        {fieldDef.options?.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
+                        options={(fieldDef.options || []).map(opt => ({ value: opt, label: opt }))}
+                        onChange={setBulkValue}
+                        includeNone={true}
+                        noneLabel="—"
+                        searchable={false}
+                      />
+                    </label>
                   );
                 }
                 if (fieldDef.type === 'department') {
                   return (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">New Value</label>
-                      <select
+                    <label className="field">
+                      <span className="field-label">New value</span>
+                      <ComboSelect
                         value={bulkValue}
-                        onChange={e => setBulkValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200"
-                      >
-                        <option value="">--</option>
-                        {departments.map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
-                    </div>
+                        options={departments}
+                        onChange={setBulkValue}
+                        includeNone={true}
+                        noneLabel="—"
+                      />
+                    </label>
                   );
                 }
                 return (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">New Value</label>
+                  <label className="field">
+                    <span className="field-label">New value</span>
                     <input
+                      className="input"
                       type={fieldDef.type}
                       value={bulkValue}
                       onChange={e => setBulkValue(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200"
                       step={fieldDef.type === 'number' ? '0.01' : undefined}
                     />
-                  </div>
+                  </label>
                 );
               })()}
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleBulkEdit}
-                disabled={!bulkField || bulkSaving}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                {bulkSaving ? 'Updating...' : `Update ${selectedIds.size} Employee${selectedIds.size > 1 ? 's' : ''}`}
-              </button>
-              <button
-                onClick={() => setShowBulkEdit(false)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-              >
-                Cancel
+            <div className="hstack" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setShowBulkEdit(false)}>Cancel</button>
+              <button className="btn primary" onClick={handleBulkEdit} disabled={!bulkField || bulkSaving}>
+                {bulkSaving ? 'Updating…' : `Update ${selectedIds.size}`}
               </button>
             </div>
           </div>
@@ -359,86 +327,77 @@ export default function EmployeeList() {
       )}
 
       {loading ? (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading...</div>
+        <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Loading…</div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="kin-table">
               <thead>
-                <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-3 py-3 w-10">
+                <tr>
+                  <th style={{ width: 36 }}>
                     <input
                       type="checkbox"
                       checked={employees.length > 0 && selectedIds.size === employees.length}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                     />
                   </th>
                   {columns.map(col => (
                     <th
                       key={col.key}
                       onClick={() => handleSort(col.key)}
-                      className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none whitespace-nowrap"
+                      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
                     >
                       {col.label}{sortIndicator(col.key)}
                     </th>
                   ))}
-                  {filters.status === 'archived' && (
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">Status</th>
-                  )}
+                  {filters.status === 'archived' && <th>Status</th>}
                 </tr>
               </thead>
               <tbody>
                 {employees.map(emp => (
                   <tr
                     key={emp.id}
-                    className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer transition-colors ${
-                      selectedIds.has(emp.id) ? 'bg-purple-50 dark:bg-purple-900/20' : ''
-                    }`}
+                    className={selectedIds.has(emp.id) ? 'row-selected' : ''}
+                    style={{ cursor: 'pointer' }}
                   >
-                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                    <td onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(emp.id)}
                         onChange={() => toggleSelect(emp.id)}
-                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-3" onClick={() => navigate(`/employees/${emp.id}`)}>
-                      <div className="flex items-center gap-3">
+                    <td onClick={() => navigate(`/employees/${emp.id}`)}>
+                      <div className="hstack">
                         {photoCache[emp.id] ? (
-                          <img src={photoCache[emp.id]!} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                          <img src={photoCache[emp.id]!} className="avatar-sm" alt="" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">
-                            {getInitials(emp.employee_name)}
-                          </div>
+                          <div className="avatar-sm av-sage">{getInitials(emp.employee_name)}</div>
                         )}
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{emp.employee_name}</span>
+                        <span style={{ fontWeight: 500 }}>{emp.employee_name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.id}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_department}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_position}</td>
-                    <td className="px-4 py-3" onClick={() => navigate(`/employees/${emp.id}`)}>
-                      {emp.supervisory_role === 'Y' ? (
-                        <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">Yes</span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">No</span>
-                      )}
+                    <td className="mono" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.id}</td>
+                    <td onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_department}</td>
+                    <td onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_position}</td>
+                    <td onClick={() => navigate(`/employees/${emp.id}`)}>
+                      {emp.supervisory_role === 'Y'
+                        ? <span className="chip">Yes</span>
+                        : <span className="muted">No</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.years_of_service != null ? `${emp.years_of_service} yrs` : '-'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_pay_rate != null ? `$${emp.current_pay_rate.toFixed(2)}` : '-'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.age ?? '-'}</td>
+                    <td className="mono" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.years_of_service != null ? `${emp.years_of_service} yrs` : '—'}</td>
+                    <td className="mono" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.current_pay_rate != null ? `$${emp.current_pay_rate.toFixed(2)}` : '—'}</td>
+                    <td className="mono" onClick={() => navigate(`/employees/${emp.id}`)}>{emp.age ?? '—'}</td>
                     {filters.status === 'archived' && (
-                      <td className="px-4 py-3" onClick={() => navigate(`/employees/${emp.id}`)}>
-                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full text-xs font-medium">Archived</span>
+                      <td onClick={() => navigate(`/employees/${emp.id}`)}>
+                        <span className="chip muted">Archived</span>
                       </td>
                     )}
                   </tr>
                 ))}
                 {employees.length === 0 && (
                   <tr>
-                    <td colSpan={filters.status === 'archived' ? 10 : 9} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={filters.status === 'archived' ? 10 : 9} className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>
                       {filters.status === 'archived' ? 'No archived employees.' : 'No employees found.'}
                     </td>
                   </tr>

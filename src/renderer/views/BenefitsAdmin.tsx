@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import { Heart, Plus, Pencil, Trash2, X, ClipboardList, LayoutList } from 'lucide-react';
+import ComboSelect from '../components/ComboSelect';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 /* ────────────────────── Types ────────────────────── */
 
@@ -68,10 +69,10 @@ const COVERAGE_LABELS: Record<string, string> = {
   family: 'Family',
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  terminated: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+const STATUS_BADGE: Record<string, string> = {
+  active: 'badge success',
+  terminated: 'badge',
+  pending: 'badge warn',
 };
 
 function formatPlanType(t: string): string {
@@ -296,218 +297,121 @@ export default function BenefitsAdmin() {
   /* ─── Render ─── */
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Heart className="w-7 h-7 text-rose-600" />
-            Benefits Administration
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage benefit plans and employee enrollments
-          </p>
+          <h1 className="page-title">Benefits administration</h1>
+          <p className="page-subtitle">Manage benefit plans and employee enrollments</p>
         </div>
-        <button
-          onClick={tab === 'plans' ? openNewPlanForm : openNewEnrollmentForm}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          {tab === 'plans' ? 'Add Plan' : 'Add Enrollment'}
+        <button onClick={tab === 'plans' ? openNewPlanForm : openNewEnrollmentForm} className="btn primary">
+          <Plus />
+          {tab === 'plans' ? 'Add plan' : 'Add enrollment'}
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+      {tab === 'plans' && (
+        <div className="stat-grid">
+          <div className="stat">
+            <div className="stat-label">Total Enrolled</div>
+            <div className="stat-value">{stats?.totalEnrolled ?? 0}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Employee Cost (Monthly)</div>
+            <div className="stat-value">{formatCurrency(totalEmployeeCost)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Employer Cost (Monthly)</div>
+            <div className="stat-value">{formatCurrency(totalEmployerCost)}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="tab-row">
         {([
-          { key: 'plans' as Tab, label: 'Plans', icon: ClipboardList },
-          { key: 'enrollments' as Tab, label: 'Enrollments', icon: LayoutList },
+          { key: 'plans' as Tab, label: 'Plans' },
+          { key: 'enrollments' as Tab, label: 'Enrollments' },
         ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === t.key
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <t.icon className="w-4 h-4" />
+          <button key={t.key} className="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === 'plans' && (
-        <div className="space-y-4">
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Enrolled</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{stats?.totalEnrolled ?? 0}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Employee Cost (Monthly)</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatCurrency(totalEmployeeCost)}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Employer Cost (Monthly)</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{formatCurrency(totalEmployerCost)}</p>
-            </div>
-          </div>
-
-          {/* Cost breakdown by type */}
+        <>
           {stats && stats.byType.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Enrollment by Plan Type</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className="card" style={{ padding: 14 }}>
+              <div className="field-label" style={{ marginBottom: 10 }}>Enrollment by Plan Type</div>
+              <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
                 {stats.byType.map(bt => (
-                  <div key={bt.plan_type} className="text-center p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatPlanType(bt.plan_type)}</p>
-                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{bt.enrolled}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                  <div key={bt.plan_type} className="stat">
+                    <div className="stat-label">{formatPlanType(bt.plan_type)}</div>
+                    <div className="stat-value">{bt.enrolled}</div>
+                    <div className="small muted" style={{ marginTop: 4 }}>
                       EE: {formatCurrency(bt.total_employee_cost)} / ER: {formatCurrency(bt.total_employer_cost)}
-                    </p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Plan form */}
-          {showPlanForm && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {editingPlan ? 'Edit Plan' : 'New Benefit Plan'}
-                </h3>
-                <button onClick={() => { setShowPlanForm(false); setEditingPlan(null); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan Name</label>
-                  <input
-                    type="text"
-                    value={planForm.plan_name}
-                    onChange={e => setPlanForm(p => ({ ...p, plan_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan Type</label>
-                  <select
-                    value={planForm.plan_type}
-                    onChange={e => setPlanForm(p => ({ ...p, plan_type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    {PLAN_TYPES.map(t => (
-                      <option key={t} value={t}>{formatPlanType(t)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Provider</label>
-                  <input
-                    type="text"
-                    value={planForm.provider}
-                    onChange={e => setPlanForm(p => ({ ...p, provider: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan Number</label>
-                  <input
-                    type="text"
-                    value={planForm.plan_number}
-                    onChange={e => setPlanForm(p => ({ ...p, plan_number: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
-                  <input
-                    type="text"
-                    value={planForm.description}
-                    onChange={e => setPlanForm(p => ({ ...p, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3 mt-4">
-                <button
-                  onClick={savePlan}
-                  disabled={!planForm.plan_name.trim()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {editingPlan ? 'Save Changes' : 'Create Plan'}
-                </button>
-                <button
-                  onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+          {loading ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <span className="muted">Loading…</span>
             </div>
-          )}
-
-          {/* Plans table */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center text-gray-400">Loading plans...</div>
-            ) : plans.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No benefit plans found. Add your first plan above.</div>
-            ) : (
-              <table className="w-full text-sm">
+          ) : plans.length === 0 ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <p className="muted" style={{ margin: 0 }}>No benefit plans found. Add your first plan above.</p>
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className="kin-table">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan Name</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Provider</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan Number</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Active</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  <tr>
+                    <th>Plan Name</th>
+                    <th>Type</th>
+                    <th>Provider</th>
+                    <th>Plan Number</th>
+                    <th style={{ textAlign: 'center' }}>Active</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                <tbody>
                   {plans.map(plan => (
-                    <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">{plan.plan_name}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatPlanType(plan.plan_type)}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{plan.provider || '\u2014'}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{plan.plan_number || '\u2014'}</td>
-                      <td className="px-4 py-3 text-center">
+                    <tr key={plan.id}>
+                      <td style={{ fontWeight: 500 }}>{plan.plan_name}</td>
+                      <td>{formatPlanType(plan.plan_type)}</td>
+                      <td className="muted">{plan.provider || '\u2014'}</td>
+                      <td className="muted">{plan.plan_number || '\u2014'}</td>
+                      <td style={{ textAlign: 'center' }}>
                         <button
+                          type="button"
                           onClick={() => togglePlanActive(plan)}
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                            plan.active ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
+                          className={`kin-switch${plan.active ? ' on' : ''}`}
+                          aria-pressed={!!plan.active}
+                          aria-label="Toggle plan active"
                         >
-                          <span
-                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                              plan.active ? 'translate-x-4.5' : 'translate-x-0.5'
-                            }`}
-                          />
+                          <span className="kin-switch-thumb" />
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="hstack" style={{ gap: 4, justifyContent: 'flex-end' }}>
                           <button
                             onClick={() => openEditPlanForm(plan)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
+                            className="icon-btn"
                             title="Edit plan"
+                            type="button"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil />
                           </button>
                           <button
                             onClick={() => deletePlan(plan.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
+                            className="icon-btn"
                             title="Delete plan"
+                            type="button"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 />
                           </button>
                         </div>
                       </td>
@@ -515,203 +419,309 @@ export default function BenefitsAdmin() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'enrollments' && (
+        <>
+          <div className="card" style={{ padding: 14, marginBottom: 18 }}>
+            <div className="grid-2">
+              <label className="field">
+                <span className="field-label">Plan Type</span>
+                <ComboSelect
+                  value={typeFilter}
+                  options={PLAN_TYPES.map(t => ({ value: t, label: formatPlanType(t) }))}
+                  onChange={setTypeFilter}
+                  includeNone={true}
+                  noneLabel="All types"
+                  searchable={false}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Status</span>
+                <ComboSelect
+                  value={statusFilter}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'terminated', label: 'Terminated' },
+                    { value: 'pending', label: 'Pending' },
+                  ]}
+                  onChange={setStatusFilter}
+                  includeNone={true}
+                  noneLabel="All statuses"
+                  searchable={false}
+                />
+              </label>
+            </div>
+            {(typeFilter || statusFilter) && (
+              <div className="hstack" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setTypeFilter(''); setStatusFilter(''); }}
+                  className="btn ghost"
+                  style={{ color: 'var(--danger)' }}
+                >
+                  Clear filters
+                </button>
+              </div>
             )}
+          </div>
+
+          {loading ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <span className="muted">Loading…</span>
+            </div>
+          ) : enrollments.length === 0 ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <p className="muted" style={{ margin: 0 }}>No enrollments found.</p>
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className="kin-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Plan</th>
+                    <th>Coverage Level</th>
+                    <th style={{ textAlign: 'right' }}>Employee $</th>
+                    <th style={{ textAlign: 'right' }}>Employer $</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
+                    <th>Enrolled Date</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enrollments.map(enr => (
+                    <tr key={enr.id}>
+                      <td style={{ fontWeight: 500 }}>{enr.employee_name}</td>
+                      <td>
+                        <div>{enr.plan_name}</div>
+                        <div className="small muted">{formatPlanType(enr.plan_type)}</div>
+                      </td>
+                      <td>{formatCoverage(enr.coverage_level)}</td>
+                      <td style={{ textAlign: 'right' }}>{formatCurrency(enr.employee_contribution)}</td>
+                      <td style={{ textAlign: 'right' }}>{formatCurrency(enr.employer_contribution)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={STATUS_BADGE[enr.status] || 'badge warn'}>
+                          {enr.status.charAt(0).toUpperCase() + enr.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="muted">{formatDate(enr.enrollment_date)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="hstack" style={{ gap: 4, justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => openEditEnrollmentForm(enr)}
+                            className="icon-btn"
+                            title="Edit enrollment"
+                            type="button"
+                          >
+                            <Pencil />
+                          </button>
+                          <button
+                            onClick={() => deleteEnrollment(enr.id)}
+                            className="icon-btn"
+                            title="Delete enrollment"
+                            type="button"
+                          >
+                            <Trash2 />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {showPlanForm && (
+        <div
+          className="kin-modal-backdrop"
+          onClick={e => { if (e.target === e.currentTarget) { setShowPlanForm(false); setEditingPlan(null); } }}
+        >
+          <div className="kin-modal" style={{ maxWidth: 720 }}>
+            <div className="kin-modal-head">
+              <h2 className="kin-modal-title">{editingPlan ? 'Edit Plan' : 'New Benefit Plan'}</h2>
+            </div>
+            <form
+              onSubmit={e => { e.preventDefault(); savePlan(); }}
+              className="kin-modal-body"
+            >
+              <div className="grid-3">
+                <label className="field">
+                  <span className="field-label">Plan Name *</span>
+                  <input
+                    type="text"
+                    className="input"
+                    value={planForm.plan_name}
+                    onChange={e => setPlanForm(p => ({ ...p, plan_name: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Plan Type</span>
+                  <ComboSelect
+                    value={planForm.plan_type}
+                    options={PLAN_TYPES.map(t => ({ value: t, label: formatPlanType(t) }))}
+                    onChange={v => setPlanForm(p => ({ ...p, plan_type: v || 'health' }))}
+                    includeNone={false}
+                    searchable={false}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Provider</span>
+                  <input
+                    type="text"
+                    className="input"
+                    value={planForm.provider}
+                    onChange={e => setPlanForm(p => ({ ...p, provider: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="grid-2">
+                <label className="field">
+                  <span className="field-label">Plan Number</span>
+                  <input
+                    type="text"
+                    className="input"
+                    value={planForm.plan_number}
+                    onChange={e => setPlanForm(p => ({ ...p, plan_number: e.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Description</span>
+                  <input
+                    type="text"
+                    className="input"
+                    value={planForm.description}
+                    onChange={e => setPlanForm(p => ({ ...p, description: e.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="kin-modal-foot">
+                <button
+                  type="button"
+                  onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}
+                  className="btn ghost"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!planForm.plan_name.trim()}
+                  className="btn primary"
+                >
+                  {editingPlan ? 'Save Changes' : 'Create Plan'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {tab === 'enrollments' && (
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex gap-3 items-center flex-wrap">
-            <select
-              value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+      {showEnrollmentForm && (
+        <div
+          className="kin-modal-backdrop"
+          onClick={e => { if (e.target === e.currentTarget) { setShowEnrollmentForm(false); setEditingEnrollment(null); } }}
+        >
+          <div className="kin-modal" style={{ maxWidth: 720 }}>
+            <div className="kin-modal-head">
+              <h2 className="kin-modal-title">{editingEnrollment ? 'Edit Enrollment' : 'New Enrollment'}</h2>
+            </div>
+            <form
+              onSubmit={e => { e.preventDefault(); saveEnrollment(); }}
+              className="kin-modal-body"
             >
-              <option value="">All Types</option>
-              {PLAN_TYPES.map(t => (
-                <option key={t} value={t}>{formatPlanType(t)}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="terminated">Terminated</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
-
-          {/* Enrollment form */}
-          {showEnrollmentForm && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {editingEnrollment ? 'Edit Enrollment' : 'New Enrollment'}
-                </h3>
-                <button onClick={() => { setShowEnrollmentForm(false); setEditingEnrollment(null); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Employee</label>
-                  <select
+              <div className="grid-3">
+                <label className="field">
+                  <span className="field-label">Employee *</span>
+                  <ComboSelect
                     value={enrollmentForm.employee_id}
-                    onChange={e => setEnrollmentForm(f => ({ ...f, employee_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">Select employee...</option>
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.employee_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan</label>
-                  <select
+                    options={employees.map(emp => ({ value: String(emp.id), label: emp.employee_name }))}
+                    onChange={v => setEnrollmentForm(f => ({ ...f, employee_id: v }))}
+                    placeholder="Select employee..."
+                    includeNone={true}
+                    noneLabel="Select employee..."
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Plan *</span>
+                  <ComboSelect
                     value={enrollmentForm.plan_id}
-                    onChange={e => setEnrollmentForm(f => ({ ...f, plan_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">Select plan...</option>
-                    {plans.filter(p => p.active).map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.plan_name} ({formatPlanType(p.plan_type)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Enrollment Date</label>
+                    options={plans.filter(p => p.active).map(p => ({ value: String(p.id), label: `${p.plan_name} (${formatPlanType(p.plan_type)})` }))}
+                    onChange={v => setEnrollmentForm(f => ({ ...f, plan_id: v }))}
+                    placeholder="Select plan..."
+                    includeNone={true}
+                    noneLabel="Select plan..."
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Enrollment Date</span>
                   <input
                     type="date"
+                    className="input"
                     value={enrollmentForm.enrollment_date}
                     onChange={e => setEnrollmentForm(f => ({ ...f, enrollment_date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Coverage Level</label>
-                  <select
+                </label>
+              </div>
+              <div className="grid-3">
+                <label className="field">
+                  <span className="field-label">Coverage Level</span>
+                  <ComboSelect
                     value={enrollmentForm.coverage_level}
-                    onChange={e => setEnrollmentForm(f => ({ ...f, coverage_level: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    {COVERAGE_LEVELS.map(c => (
-                      <option key={c} value={c}>{formatCoverage(c)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Employee Contribution</label>
+                    options={COVERAGE_LEVELS.map(c => ({ value: c, label: formatCoverage(c) }))}
+                    onChange={v => setEnrollmentForm(f => ({ ...f, coverage_level: v || 'employee' }))}
+                    includeNone={false}
+                    searchable={false}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Employee Contribution</span>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
+                    className="input"
                     value={enrollmentForm.employee_contribution}
                     onChange={e => setEnrollmentForm(f => ({ ...f, employee_contribution: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Employer Contribution</label>
+                </label>
+                <label className="field">
+                  <span className="field-label">Employer Contribution</span>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
+                    className="input"
                     value={enrollmentForm.employer_contribution}
                     onChange={e => setEnrollmentForm(f => ({ ...f, employer_contribution: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
-                </div>
+                </label>
               </div>
-              <div className="flex items-center gap-3 mt-4">
+
+              <div className="kin-modal-foot">
                 <button
-                  onClick={saveEnrollment}
-                  disabled={!enrollmentForm.employee_id || !enrollmentForm.plan_id}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {editingEnrollment ? 'Save Changes' : 'Create Enrollment'}
-                </button>
-                <button
+                  type="button"
                   onClick={() => { setShowEnrollmentForm(false); setEditingEnrollment(null); }}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="btn ghost"
                 >
                   Cancel
                 </button>
+                <button
+                  type="submit"
+                  disabled={!enrollmentForm.employee_id || !enrollmentForm.plan_id}
+                  className="btn primary"
+                >
+                  {editingEnrollment ? 'Save Changes' : 'Create Enrollment'}
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* Enrollments table */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center text-gray-400">Loading enrollments...</div>
-            ) : enrollments.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No enrollments found.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employee</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Coverage Level</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employee $</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employer $</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Enrolled Date</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {enrollments.map(enr => (
-                    <tr key={enr.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">{enr.employee_name}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        <div>{enr.plan_name}</div>
-                        <div className="text-xs text-gray-400 dark:text-gray-500">{formatPlanType(enr.plan_type)}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCoverage(enr.coverage_level)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(enr.employee_contribution)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(enr.employer_contribution)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[enr.status] || STATUS_STYLES.pending}`}>
-                          {enr.status.charAt(0).toUpperCase() + enr.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDate(enr.enrollment_date)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEditEnrollmentForm(enr)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
-                            title="Edit enrollment"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteEnrollment(enr.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
-                            title="Delete enrollment"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            </form>
           </div>
         </div>
       )}

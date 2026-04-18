@@ -153,6 +153,19 @@ export async function importFromExcel(filePath: string): Promise<{ imported: num
           if (mapped[f] != null) mapped[f] = Number(mapped[f]);
         }
 
+        // Trim categorical string fields so "Asian" and "Asian " don't become
+        // separate groups in charts/filters.
+        const TRIM_FIELDS = [
+          'race', 'ethnicity', 'sex', 'country_of_origin', 'highest_education',
+          'current_department', 'current_position', 'employee_name',
+        ];
+        for (const f of TRIM_FIELDS) {
+          if (typeof mapped[f] === 'string') {
+            const trimmed = mapped[f].trim();
+            mapped[f] = trimmed === '' ? null : trimmed;
+          }
+        }
+
         // Normalize supervisory role
         if (mapped.supervisory_role) {
           mapped.supervisory_role = mapped.supervisory_role.toString().toUpperCase().trim();

@@ -29,7 +29,7 @@ function InlineText({ text }: { text: string }) {
     if (match[2]) {
       parts.push(<strong key={key++}>{match[2]}</strong>);
     } else if (match[3]) {
-      parts.push(<code key={key++} className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">{match[3]}</code>);
+      parts.push(<code key={key++} className="mono" style={{ padding: '1px 4px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', fontSize: 11 }}>{match[3]}</code>);
     }
     lastIndex = regex.lastIndex;
   }
@@ -41,7 +41,7 @@ function InlineText({ text }: { text: string }) {
 
 /** Detect whether text is HTML or markdown and render accordingly */
 function ReleaseNotes({ text }: { text: string }) {
-  if (!text) return <p className="text-sm text-gray-500 dark:text-gray-400 italic">No release notes available.</p>;
+  if (!text) return <p className="small muted" style={{ fontStyle: 'italic' }}>No release notes available.</p>;
 
   // electron-updater returns HTML from GitHub releases; sanitize and render it
   const isHtml = /<[a-z][\s\S]*>/i.test(text);
@@ -49,7 +49,8 @@ function ReleaseNotes({ text }: { text: string }) {
     const sanitized = DOMPurify.sanitize(text);
     return (
       <div
-        className="release-notes-html space-y-1.5 text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:text-gray-900 dark:[&_h1]:text-gray-100 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-gray-900 dark:[&_h2]:text-gray-100 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-gray-800 dark:[&_h3]:text-gray-200 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_p]:mb-2 [&_strong]:font-semibold [&_code]:px-1 [&_code]:py-0.5 [&_code]:bg-gray-100 dark:[&_code]:bg-gray-700 [&_code]:rounded [&_code]:text-xs"
+        className="release-notes-html"
+        style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}
         dangerouslySetInnerHTML={{ __html: sanitized }}
       />
     );
@@ -58,26 +59,26 @@ function ReleaseNotes({ text }: { text: string }) {
   // Fallback: render as markdown
   const lines = text.split('\n');
   return (
-    <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+    <div className="vstack" style={{ gap: 6, fontSize: 13, color: 'var(--ink-2)' }}>
       {lines.map((line, i) => {
         const trimmed = line.trim();
-        if (!trimmed) return <div key={i} className="h-2" />;
+        if (!trimmed) return <div key={i} style={{ height: 8 }} />;
 
         if (trimmed.startsWith('## ')) {
-          return <h3 key={i} className="text-base font-semibold text-gray-900 dark:text-gray-100 mt-3 mb-1"><InlineText text={trimmed.slice(3)} /></h3>;
+          return <h3 key={i} style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 12, marginBottom: 4 }}><InlineText text={trimmed.slice(3)} /></h3>;
         }
         if (trimmed.startsWith('### ')) {
-          return <h4 key={i} className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2 mb-0.5"><InlineText text={trimmed.slice(4)} /></h4>;
+          return <h4 key={i} style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginTop: 8, marginBottom: 2 }}><InlineText text={trimmed.slice(4)} /></h4>;
         }
         if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
           return (
-            <div key={i} className="flex gap-2 pl-2">
-              <span className="text-gray-400 mt-0.5">•</span>
+            <div key={i} style={{ display: 'flex', gap: 8, paddingLeft: 8 }}>
+              <span style={{ color: 'var(--ink-4)', marginTop: 2 }}>•</span>
               <span><InlineText text={trimmed.slice(2)} /></span>
             </div>
           );
         }
-        return <p key={i}><InlineText text={trimmed} /></p>;
+        return <p key={i} style={{ margin: 0 }}><InlineText text={trimmed} /></p>;
       })}
     </div>
   );
@@ -86,33 +87,33 @@ function ReleaseNotes({ text }: { text: string }) {
 /** Modal shown after an update has been installed */
 function PostUpdateModal({ version, releaseNotes, onClose }: { version: string; releaseNotes: string; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <div
+      className="kin-modal-backdrop"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="kin-modal" style={{ maxWidth: 520, maxHeight: '80vh' }}>
+        <div className="kin-modal-head">
+          <div className="hstack" style={{ gap: 10, alignItems: 'center', flex: 1 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" fill="none" stroke="var(--success)" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Updated to v{version}</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">HR Database has been updated successfully</p>
+              <h2 className="kin-modal-title">Updated to v{version}</h2>
+              <div className="small muted">HR Database has been updated successfully</div>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="kin-modal-body">
           <ReleaseNotes text={releaseNotes} />
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="kin-modal-foot">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            className="btn primary"
           >
             Got it
           </button>
@@ -130,7 +131,6 @@ export default function UpdateBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [postUpdate, setPostUpdate] = useState<{ version: string; releaseNotes: string } | null>(null);
 
-  // Check if we just updated
   useEffect(() => {
     api.getPostUpdateInfo().then(info => {
       if (info) setPostUpdate(info);
@@ -191,6 +191,8 @@ export default function UpdateBanner() {
     api.installUpdate(update?.releaseNotes, update?.latestVersion);
   };
 
+  const bannerBg = state === 'downloaded' ? 'var(--success)' : state === 'error' ? 'var(--danger)' : 'var(--accent)';
+
   return (
     <>
       {postUpdate && (
@@ -202,38 +204,46 @@ export default function UpdateBanner() {
       )}
 
       {update && update.isOutdated && !dismissed && (
-        <div className={`px-4 py-2.5 flex items-center justify-between text-sm flex-shrink-0 ${
-          state === 'downloaded' ? 'bg-emerald-600 text-white' : state === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-        }`}>
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <div
+          style={{
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 13,
+            flexShrink: 0,
+            background: bannerBg,
+            color: '#fff',
+          }}
+        >
+          <div className="hstack" style={{ gap: 12, flex: 1, minWidth: 0, alignItems: 'center' }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ flexShrink: 0 }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
             </svg>
 
             {state === 'available' && (
               <span>
                 A new version is available!{' '}
-                <span className="font-semibold">v{update.latestVersion}</span>
-                <span className="opacity-75 ml-1">(you have v{update.currentVersion})</span>
+                <span style={{ fontWeight: 600 }}>v{update.latestVersion}</span>
+                <span style={{ opacity: 0.75, marginLeft: 4 }}>(you have v{update.currentVersion})</span>
               </span>
             )}
 
             {state === 'downloading' && (
-              <div className="flex items-center gap-3 flex-1">
+              <div className="hstack" style={{ gap: 12, flex: 1, alignItems: 'center' }}>
                 <span>Downloading update...</span>
-                <div className="flex-1 max-w-xs bg-blue-400/30 rounded-full h-2 overflow-hidden">
+                <div style={{ flex: 1, maxWidth: 320, background: 'rgba(255,255,255,0.3)', borderRadius: 999, height: 8, overflow: 'hidden' }}>
                   <div
-                    className="bg-white h-full rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
+                    style={{ background: '#fff', height: '100%', borderRadius: 999, transition: 'width 300ms', width: `${progress}%` }}
                   />
                 </div>
-                <span className="text-xs opacity-75 tabular-nums">{progress}%</span>
+                <span style={{ fontSize: 11, opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>{progress}%</span>
               </div>
             )}
 
             {state === 'downloaded' && (
               <span>
-                Update <span className="font-semibold">v{update.latestVersion}</span> is ready to install!
+                Update <span style={{ fontWeight: 600 }}>v{update.latestVersion}</span> is ready to install!
               </span>
             )}
 
@@ -242,11 +252,11 @@ export default function UpdateBanner() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          <div className="hstack" style={{ gap: 8, flexShrink: 0, marginLeft: 12, alignItems: 'center' }}>
             {state === 'available' && (
               <button
                 onClick={handleDownload}
-                className="px-3 py-1 bg-white text-blue-600 rounded font-medium hover:bg-blue-50 transition-colors"
+                style={{ padding: '4px 12px', background: '#fff', color: 'var(--accent)', borderRadius: 'var(--radius-sm)', fontWeight: 500, border: 0, cursor: 'pointer', fontSize: 12 }}
               >
                 Download & Install
               </button>
@@ -255,7 +265,7 @@ export default function UpdateBanner() {
             {state === 'downloaded' && (
               <button
                 onClick={handleInstall}
-                className="px-3 py-1 bg-white text-emerald-600 rounded font-medium hover:bg-emerald-50 transition-colors"
+                style={{ padding: '4px 12px', background: '#fff', color: 'var(--success)', borderRadius: 'var(--radius-sm)', fontWeight: 500, border: 0, cursor: 'pointer', fontSize: 12 }}
               >
                 Restart & Install
               </button>
@@ -265,13 +275,13 @@ export default function UpdateBanner() {
               <>
                 <button
                   onClick={handleDownload}
-                  className="px-3 py-1 bg-white text-red-600 rounded font-medium hover:bg-red-50 transition-colors"
+                  style={{ padding: '4px 12px', background: '#fff', color: 'var(--danger)', borderRadius: 'var(--radius-sm)', fontWeight: 500, border: 0, cursor: 'pointer', fontSize: 12 }}
                 >
                   Retry
                 </button>
                 <button
                   onClick={() => api.openReleasePage(update.releaseUrl)}
-                  className="px-3 py-1 bg-red-500 text-white rounded font-medium hover:bg-red-400 transition-colors"
+                  style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: 'var(--radius-sm)', fontWeight: 500, border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 12 }}
                 >
                   Manual Download
                 </button>
@@ -281,12 +291,10 @@ export default function UpdateBanner() {
             {state !== 'downloading' && (
               <button
                 onClick={() => setDismissed(true)}
-                className={`p-1 rounded transition-colors ${
-                  state === 'downloaded' ? 'hover:bg-emerald-500' : state === 'error' ? 'hover:bg-red-500' : 'hover:bg-blue-500'
-                }`}
+                style={{ padding: 4, borderRadius: 'var(--radius-sm)', background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 title="Dismiss"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

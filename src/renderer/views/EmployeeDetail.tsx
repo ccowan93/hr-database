@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import type { Employee, PayHistory, AuditLogEntry, EmployeeNote, EmployeeFile } from '../types/employee';
 import EmployeeForm from '../components/EmployeeForm';
+import ComboSelect from '../components/ComboSelect';
 import { Paperclip, FileText, Trash2, Eye, Upload, ShieldAlert, Heart, Plus, ChevronDown, ChevronRight, Edit3 } from 'lucide-react';
 
 export default function EmployeeDetail() {
@@ -40,6 +41,7 @@ export default function EmployeeDetail() {
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'job' | 'compensation' | 'documents' | 'history'>('overview');
 
   useEffect(() => {
     if (!id) return;
@@ -133,11 +135,11 @@ export default function EmployeeDetail() {
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   if (loading) {
-    return <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading...</div>;
+    return <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Loading…</div>;
   }
 
   if (!employee) {
-    return <div className="text-center text-gray-500 dark:text-gray-400 py-12">Employee not found.</div>;
+    return <div className="muted" style={{ textAlign: 'center', padding: '48px 0' }}>Employee not found.</div>;
   }
 
   const isArchived = employee.status === 'archived';
@@ -146,7 +148,7 @@ export default function EmployeeDetail() {
     return (
       <div>
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Edit: {employee.employee_name}</h2>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <div className="card p-6">
           <EmployeeForm employee={employee} onSave={handleSave} onCancel={() => setEditing(false)} />
         </div>
       </div>
@@ -205,108 +207,156 @@ export default function EmployeeDetail() {
     },
   ];
 
+  const personalSection = sections[0];
+  const employmentSection = sections[1];
+  const compSection = sections[2];
+  const transfersSection = sections[3];
+
+  const renderKv = (fields: { label: string; value: any }[]) => (
+    <div className="kv-list">
+      {fields.map(f => (
+        <div key={f.label} className="kv-row">
+          <span className="kv-label">{f.label}</span>
+          <span className={`kv-value${f.value == null || f.value === '' ? ' empty' : ''}`}>
+            {f.value == null || f.value === '' ? '—' : String(f.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <button onClick={() => navigate('/employees')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
-            &larr; Back to Employees
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="relative group">
-              {photoDataUrl ? (
-                <img src={photoDataUrl} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400 border-2 border-gray-200 dark:border-gray-600">
-                  {getInitials(employee.employee_name)}
-                </div>
-              )}
-              {!isArchived && (
-                <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <button
-                    onClick={handleUploadPhoto}
-                    className="text-white text-xs font-medium"
-                  >
-                    {photoDataUrl ? 'Change' : 'Upload'}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{employee.employee_name}</h2>
-                {isArchived && (
-                  <span className="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium">Archived</span>
-                )}
-              </div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">{employee.current_position} &mdash; {employee.current_department}</p>
-              {photoDataUrl && !isArchived && (
-                <button onClick={handleRemovePhoto} className="text-xs text-red-500 hover:underline mt-0.5">Remove photo</button>
-              )}
-            </div>
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <button onClick={() => navigate('/employees')} className="btn ghost" style={{ padding: '2px 0', alignSelf: 'flex-start' }}>
+        ← Back to People
+      </button>
+
+      <div className="profile-card">
+        <div style={{ position: 'relative' }} className="group">
+          {photoDataUrl ? (
+            <img src={photoDataUrl} className="profile-avatar" alt="" />
+          ) : (
+            <div className="profile-avatar">{getInitials(employee.employee_name)}</div>
+          )}
+          {!isArchived && (
+            <button
+              onClick={handleUploadPhoto}
+              style={{
+                position: 'absolute', inset: 0, borderRadius: 16,
+                background: 'rgba(0,0,0,0.45)', color: 'white',
+                opacity: 0, transition: 'opacity 0.15s',
+                fontSize: 11, fontWeight: 500, border: 0, cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+            >
+              {photoDataUrl ? 'Change' : 'Upload'}
+            </button>
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="hstack" style={{ gap: 10 }}>
+            <h1 className="profile-name">{employee.employee_name}</h1>
+            {isArchived && <span className="badge">Archived</span>}
+          </div>
+          <p className="profile-subtitle">
+            {employee.current_position}
+            {employee.current_department ? ` · ${employee.current_department}` : ''}
+          </p>
+          <div className="profile-contact">
+            {employee.id != null && (
+              <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                ID {employee.id}
+              </span>
+            )}
+            {employee.doh && (
+              <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {employee.years_of_service ? `${employee.years_of_service}y ` : ''}since {employee.doh}
+              </span>
+            )}
+            {employee.country_of_origin && (
+              <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z"/></svg>
+                {employee.country_of_origin}
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExportPdf}
-            disabled={exportingPdf}
-            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-          >
-            {exportingPdf ? 'Exporting...' : 'Export PDF'}
+        <div className="hstack">
+          <button onClick={handleExportPdf} disabled={exportingPdf} className="btn">
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
           </button>
           {!isArchived && (
             <>
-              <button
-                onClick={() => setEditing(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleArchive}
-                className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
-              >
-                Archive
-              </button>
+              <button onClick={() => setEditing(true)} className="btn primary">Edit</button>
+              <button onClick={handleArchive} className="btn">Archive</button>
             </>
           )}
           {isArchived && (
             <>
-              <button
-                onClick={handleRestore}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
-              >
-                Restore
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
-              >
-                Delete Permanently
-              </button>
+              <button onClick={handleRestore} className="btn accent">Restore</button>
+              <button onClick={handleDelete} className="btn" style={{ color: 'var(--danger)' }}>Delete</button>
             </>
           )}
         </div>
       </div>
 
-      <div className="space-y-6">
-        {sections.map(section => (
-          <div key={section.title} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{section.title}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {section.fields.map(field => (
-                <div key={field.label}>
-                  <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{field.label}</p>
-                  <p className="text-sm text-gray-800 dark:text-gray-100 mt-1">{field.value ?? <span className="text-gray-300 dark:text-gray-600">-</span>}</p>
-                </div>
-              ))}
+      <div className="tab-row">
+        <button className="tab" aria-selected={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</button>
+        <button className="tab" aria-selected={activeTab === 'job'} onClick={() => setActiveTab('job')}>Job</button>
+        <button className="tab" aria-selected={activeTab === 'compensation'} onClick={() => setActiveTab('compensation')}>Compensation</button>
+        <button className="tab" aria-selected={activeTab === 'documents'} onClick={() => setActiveTab('documents')}>Documents</button>
+        <button className="tab" aria-selected={activeTab === 'history'} onClick={() => setActiveTab('history')}>History</button>
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="grid-2">
+          <div className="vstack" style={{ gap: 16 }}>
+            <div className="section-card">
+              <div className="section-head">
+                <h3 className="section-title">About</h3>
+              </div>
+              <div className="section-body">{renderKv(personalSection.fields)}</div>
             </div>
           </div>
-        ))}
+          <div className="vstack" style={{ gap: 16 }}>
+            <div className="section-card">
+              <div className="section-head">
+                <h3 className="section-title">Employment</h3>
+              </div>
+              <div className="section-body">{renderKv(employmentSection.fields)}</div>
+            </div>
+            <div className="section-card">
+              <div className="section-head">
+                <h3 className="section-title">Compensation</h3>
+              </div>
+              <div className="section-body">{renderKv(compSection.fields)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {/* Pay History */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Pay History</h3>
+      {activeTab === 'job' && (
+        <div className="vstack" style={{ gap: 16 }}>
+          <div className="section-card">
+            <div className="section-head"><h3 className="section-title">Employment</h3></div>
+            <div className="section-body">{renderKv(employmentSection.fields)}</div>
+          </div>
+          <div className="section-card">
+            <div className="section-head"><h3 className="section-title">Transfers</h3></div>
+            <div className="section-body">{renderKv(transfersSection.fields)}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="vstack" style={{ gap: 16 }}>
+
+        {activeTab === 'compensation' && (
+        <div className="section-card">
+          <div className="section-head"><h3 className="section-title">Pay history</h3></div>
+          <div className="section-body">
           {payHistory.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500">No pay history recorded yet.</p>
           ) : (
@@ -339,11 +389,14 @@ export default function EmployeeDetail() {
               </table>
             </div>
           )}
+          </div>
         </div>
+        )}
 
-        {/* Change History (Audit Log) */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Change History</h3>
+        {activeTab === 'history' && (
+        <div className="section-card">
+          <div className="section-head"><h3 className="section-title">Change history</h3></div>
+          <div className="section-body">
           {auditLog.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500">No changes recorded yet.</p>
           ) : (
@@ -384,10 +437,12 @@ export default function EmployeeDetail() {
               </table>
             </div>
           )}
+          </div>
         </div>
+        )}
 
-        {/* Disciplinary Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        {activeTab === 'job' && (
+        <div className="card p-6">
           <button onClick={() => setDiscOpen(!discOpen)} className="w-full flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-500" />
@@ -405,83 +460,88 @@ export default function EmployeeDetail() {
             <div className="mt-4">
               {!isArchived && (
                 <button onClick={() => { setShowDiscForm(!showDiscForm); setEditingDiscId(null); setDiscForm({ type: 'verbal_warning', date: '', description: '', outcome: '', issued_by: '', follow_up_date: '', status: 'open' }); }}
-                  className="mb-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                  className="btn primary" style={{ marginBottom: 12 }}>
                   <Plus className="w-3.5 h-3.5" /> Add Action
                 </button>
               )}
 
               {showDiscForm && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Type *</label>
-                      <select value={discForm.type} onChange={e => setDiscForm({ ...discForm, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                        <option value="verbal_warning">Verbal Warning</option>
-                        <option value="written_warning">Written Warning</option>
-                        <option value="suspension">Suspension</option>
-                        <option value="termination">Termination</option>
-                        <option value="pip">PIP</option>
-                        <option value="other">Other</option>
-                      </select>
+                <div className="card" style={{ padding: 16, marginBottom: 16, background: 'var(--surface-2)' }}>
+                  <div className="vstack" style={{ gap: 12 }}>
+                    <div className="grid grid-cols-3 gap-3">
+                      <label className="field">
+                        <span className="field-label">Type *</span>
+                        <ComboSelect
+                          value={discForm.type}
+                          options={[
+                            { value: 'verbal_warning', label: 'Verbal Warning' },
+                            { value: 'written_warning', label: 'Written Warning' },
+                            { value: 'suspension', label: 'Suspension' },
+                            { value: 'termination', label: 'Termination' },
+                            { value: 'pip', label: 'PIP' },
+                            { value: 'other', label: 'Other' },
+                          ]}
+                          onChange={v => setDiscForm({ ...discForm, type: v || 'verbal_warning' })}
+                          includeNone={false}
+                          searchable={false}
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Date *</span>
+                        <input type="date" value={discForm.date} onChange={e => setDiscForm({ ...discForm, date: e.target.value })} className="input" />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Status</span>
+                        <ComboSelect
+                          value={discForm.status}
+                          options={[
+                            { value: 'open', label: 'Open' },
+                            { value: 'resolved', label: 'Resolved' },
+                            { value: 'escalated', label: 'Escalated' },
+                          ]}
+                          onChange={v => setDiscForm({ ...discForm, status: v || 'open' })}
+                          includeNone={false}
+                          searchable={false}
+                        />
+                      </label>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Date *</label>
-                      <input type="date" value={discForm.date} onChange={e => setDiscForm({ ...discForm, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="field">
+                        <span className="field-label">Issued By</span>
+                        <input type="text" value={discForm.issued_by} onChange={e => setDiscForm({ ...discForm, issued_by: e.target.value })} className="input" />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Follow-up Date</span>
+                        <input type="date" value={discForm.follow_up_date} onChange={e => setDiscForm({ ...discForm, follow_up_date: e.target.value })} className="input" />
+                      </label>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                      <select value={discForm.status} onChange={e => setDiscForm({ ...discForm, status: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                        <option value="open">Open</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="escalated">Escalated</option>
-                      </select>
+                    <label className="field">
+                      <span className="field-label">Description</span>
+                      <textarea value={discForm.description} onChange={e => setDiscForm({ ...discForm, description: e.target.value })} rows={2} className="input" />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Outcome</span>
+                      <textarea value={discForm.outcome} onChange={e => setDiscForm({ ...discForm, outcome: e.target.value })} rows={2} className="input" />
+                    </label>
+                    <div className="hstack" style={{ gap: 8 }}>
+                      <button onClick={async () => {
+                        if (!employee || !discForm.date) return;
+                        if (editingDiscId) {
+                          await api.updateDisciplinaryAction(editingDiscId, discForm);
+                        } else {
+                          await api.createDisciplinaryAction({ ...discForm, employee_id: employee.id });
+                        }
+                        setShowDiscForm(false);
+                        setEditingDiscId(null);
+                        const d = await api.getDisciplinaryActions(employee.id);
+                        setDisciplinaryActions(d);
+                      }} disabled={!discForm.date} className="btn primary">
+                        {editingDiscId ? 'Save Changes' : 'Add Action'}
+                      </button>
+                      <button onClick={() => { setShowDiscForm(false); setEditingDiscId(null); }} className="btn ghost">
+                        Cancel
+                      </button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Issued By</label>
-                      <input type="text" value={discForm.issued_by} onChange={e => setDiscForm({ ...discForm, issued_by: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Follow-up Date</label>
-                      <input type="date" value={discForm.follow_up_date} onChange={e => setDiscForm({ ...discForm, follow_up_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                    <textarea value={discForm.description} onChange={e => setDiscForm({ ...discForm, description: e.target.value })} rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Outcome</label>
-                    <textarea value={discForm.outcome} onChange={e => setDiscForm({ ...discForm, outcome: e.target.value })} rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={async () => {
-                      if (!employee || !discForm.date) return;
-                      if (editingDiscId) {
-                        await api.updateDisciplinaryAction(editingDiscId, discForm);
-                      } else {
-                        await api.createDisciplinaryAction({ ...discForm, employee_id: employee.id });
-                      }
-                      setShowDiscForm(false);
-                      setEditingDiscId(null);
-                      const d = await api.getDisciplinaryActions(employee.id);
-                      setDisciplinaryActions(d);
-                    }} disabled={!discForm.date}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium disabled:opacity-50">
-                      {editingDiscId ? 'Save Changes' : 'Add Action'}
-                    </button>
-                    <button onClick={() => { setShowDiscForm(false); setEditingDiscId(null); }}
-                      className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm">
-                      Cancel
-                    </button>
                   </div>
                 </div>
               )}
@@ -540,9 +600,10 @@ export default function EmployeeDetail() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Benefits & Dependents */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        {activeTab === 'job' && (
+        <div className="card p-6">
           <button onClick={() => setBenefitsOpen(!benefitsOpen)} className="w-full flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <Heart className="w-5 h-5 text-pink-500" />
@@ -563,64 +624,68 @@ export default function EmployeeDetail() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Enrollments</h4>
                   {!isArchived && (
-                    <button onClick={() => setShowEnrollForm(!showEnrollForm)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                    <button onClick={() => setShowEnrollForm(!showEnrollForm)} className="btn primary" style={{ padding: '4px 8px', fontSize: 12 }}>
                       <Plus className="w-3 h-3" /> Enroll
                     </button>
                   )}
                 </div>
 
                 {showEnrollForm && (
-                  <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Plan *</label>
-                        <select value={enrollForm.plan_id} onChange={e => setEnrollForm({ ...enrollForm, plan_id: parseInt(e.target.value) })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                          <option value={0}>Select plan...</option>
-                          {benefitPlans.map((p: any) => <option key={p.id} value={p.id}>{p.plan_name} ({p.plan_type})</option>)}
-                        </select>
+                  <div className="card" style={{ padding: 12, marginBottom: 12, background: 'var(--surface-2)' }}>
+                    <div className="vstack" style={{ gap: 8 }}>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="field">
+                          <span className="field-label">Plan *</span>
+                          <ComboSelect
+                            value={enrollForm.plan_id ? String(enrollForm.plan_id) : ''}
+                            options={benefitPlans.map((p: any) => ({ value: String(p.id), label: `${p.plan_name} (${p.plan_type})` }))}
+                            onChange={v => setEnrollForm({ ...enrollForm, plan_id: parseInt(v) || 0 })}
+                            placeholder="Select plan..."
+                            includeNone={true}
+                            noneLabel="Select plan..."
+                          />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Enrollment Date *</span>
+                          <input type="date" value={enrollForm.enrollment_date} onChange={e => setEnrollForm({ ...enrollForm, enrollment_date: e.target.value })} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Coverage Level</span>
+                          <ComboSelect
+                            value={enrollForm.coverage_level}
+                            options={[
+                              { value: 'employee', label: 'Employee Only' },
+                              { value: 'employee_spouse', label: 'Employee + Spouse' },
+                              { value: 'employee_children', label: 'Employee + Children' },
+                              { value: 'family', label: 'Family' },
+                            ]}
+                            onChange={v => setEnrollForm({ ...enrollForm, coverage_level: v || 'employee' })}
+                            includeNone={false}
+                            searchable={false}
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Enrollment Date *</label>
-                        <input type="date" value={enrollForm.enrollment_date} onChange={e => setEnrollForm({ ...enrollForm, enrollment_date: e.target.value })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="field">
+                          <span className="field-label">Employee Contribution ($)</span>
+                          <input type="number" step="0.01" value={enrollForm.employee_contribution} onChange={e => setEnrollForm({ ...enrollForm, employee_contribution: parseFloat(e.target.value) || 0 })} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Employer Contribution ($)</span>
+                          <input type="number" step="0.01" value={enrollForm.employer_contribution} onChange={e => setEnrollForm({ ...enrollForm, employer_contribution: parseFloat(e.target.value) || 0 })} className="input" />
+                        </label>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Coverage Level</label>
-                        <select value={enrollForm.coverage_level} onChange={e => setEnrollForm({ ...enrollForm, coverage_level: e.target.value })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                          <option value="employee">Employee Only</option>
-                          <option value="employee_spouse">Employee + Spouse</option>
-                          <option value="employee_children">Employee + Children</option>
-                          <option value="family">Family</option>
-                        </select>
+                      <div className="hstack" style={{ gap: 8 }}>
+                        <button onClick={async () => {
+                          if (!employee || !enrollForm.plan_id || !enrollForm.enrollment_date) return;
+                          await api.createEnrollment({ ...enrollForm, employee_id: employee.id });
+                          setShowEnrollForm(false);
+                          setEnrollForm({ plan_id: 0, enrollment_date: '', coverage_level: 'employee', employee_contribution: 0, employer_contribution: 0 });
+                          const e = await api.getEnrollments(employee.id);
+                          setEnrollments(e);
+                        }} disabled={!enrollForm.plan_id || !enrollForm.enrollment_date} className="btn primary" style={{ padding: '4px 10px', fontSize: 12 }}>Add</button>
+                        <button onClick={() => setShowEnrollForm(false)} className="btn ghost" style={{ padding: '4px 10px', fontSize: 12 }}>Cancel</button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Employee Contribution ($)</label>
-                        <input type="number" step="0.01" value={enrollForm.employee_contribution} onChange={e => setEnrollForm({ ...enrollForm, employee_contribution: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Employer Contribution ($)</label>
-                        <input type="number" step="0.01" value={enrollForm.employer_contribution} onChange={e => setEnrollForm({ ...enrollForm, employer_contribution: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={async () => {
-                        if (!employee || !enrollForm.plan_id || !enrollForm.enrollment_date) return;
-                        await api.createEnrollment({ ...enrollForm, employee_id: employee.id });
-                        setShowEnrollForm(false);
-                        setEnrollForm({ plan_id: 0, enrollment_date: '', coverage_level: 'employee', employee_contribution: 0, employer_contribution: 0 });
-                        const e = await api.getEnrollments(employee.id);
-                        setEnrollments(e);
-                      }} disabled={!enrollForm.plan_id || !enrollForm.enrollment_date}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50">Add</button>
-                      <button onClick={() => setShowEnrollForm(false)}
-                        className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -675,49 +740,51 @@ export default function EmployeeDetail() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Dependents</h4>
                   {!isArchived && (
-                    <button onClick={() => setShowDepForm(!showDepForm)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                    <button onClick={() => setShowDepForm(!showDepForm)} className="btn primary" style={{ padding: '4px 8px', fontSize: 12 }}>
                       <Plus className="w-3 h-3" /> Add Dependent
                     </button>
                   )}
                 </div>
 
                 {showDepForm && (
-                  <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-750 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input type="text" value={depForm.name} onChange={e => setDepForm({ ...depForm, name: e.target.value })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                  <div className="card" style={{ padding: 12, marginBottom: 12, background: 'var(--surface-2)' }}>
+                    <div className="vstack" style={{ gap: 8 }}>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="field">
+                          <span className="field-label">Name *</span>
+                          <input type="text" value={depForm.name} onChange={e => setDepForm({ ...depForm, name: e.target.value })} className="input" />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Relationship</span>
+                          <ComboSelect
+                            value={depForm.relationship}
+                            options={[
+                              { value: 'spouse', label: 'Spouse' },
+                              { value: 'child', label: 'Child' },
+                              { value: 'domestic_partner', label: 'Domestic Partner' },
+                              { value: 'other', label: 'Other' },
+                            ]}
+                            onChange={v => setDepForm({ ...depForm, relationship: v || 'spouse' })}
+                            includeNone={false}
+                            searchable={false}
+                          />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Date of Birth</span>
+                          <input type="date" value={depForm.date_of_birth} onChange={e => setDepForm({ ...depForm, date_of_birth: e.target.value })} className="input" />
+                        </label>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Relationship</label>
-                        <select value={depForm.relationship} onChange={e => setDepForm({ ...depForm, relationship: e.target.value })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                          <option value="spouse">Spouse</option>
-                          <option value="child">Child</option>
-                          <option value="domestic_partner">Domestic Partner</option>
-                          <option value="other">Other</option>
-                        </select>
+                      <div className="hstack" style={{ gap: 8 }}>
+                        <button onClick={async () => {
+                          if (!employee || !depForm.name.trim()) return;
+                          await api.createDependent({ ...depForm, employee_id: employee.id });
+                          setShowDepForm(false);
+                          setDepForm({ name: '', relationship: 'spouse', date_of_birth: '' });
+                          const d = await api.getDependents(employee.id);
+                          setDependents(d);
+                        }} disabled={!depForm.name.trim()} className="btn primary" style={{ padding: '4px 10px', fontSize: 12 }}>Add</button>
+                        <button onClick={() => setShowDepForm(false)} className="btn ghost" style={{ padding: '4px 10px', fontSize: 12 }}>Cancel</button>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
-                        <input type="date" value={depForm.date_of_birth} onChange={e => setDepForm({ ...depForm, date_of_birth: e.target.value })}
-                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={async () => {
-                        if (!employee || !depForm.name.trim()) return;
-                        await api.createDependent({ ...depForm, employee_id: employee.id });
-                        setShowDepForm(false);
-                        setDepForm({ name: '', relationship: 'spouse', date_of_birth: '' });
-                        const d = await api.getDependents(employee.id);
-                        setDependents(d);
-                      }} disabled={!depForm.name.trim()}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50">Add</button>
-                      <button onClick={() => setShowDepForm(false)}
-                        className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -764,9 +831,10 @@ export default function EmployeeDetail() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Files & Documents */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        {activeTab === 'documents' && (
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <Paperclip className="w-5 h-5" />
@@ -790,7 +858,7 @@ export default function EmployeeDetail() {
                   }
                 }}
                 disabled={uploadingFile}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="btn primary"
               >
                 <Upload className="w-4 h-4" />
                 {uploadingFile ? 'Uploading...' : 'Upload File'}
@@ -863,19 +931,21 @@ export default function EmployeeDetail() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Notes */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        {activeTab === 'history' && (
+        <div className="card p-6">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Notes</h3>
 
           {/* Add note */}
-          <div className="flex gap-2 mb-4">
+          <div className="hstack" style={{ gap: 8, marginBottom: 16 }}>
             <textarea
               value={newNote}
               onChange={e => setNewNote(e.target.value)}
               placeholder="Add a note..."
               rows={2}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200 resize-none"
+              className="input"
+              style={{ flex: 1, resize: 'none' }}
             />
             <button
               onClick={async () => {
@@ -886,7 +956,8 @@ export default function EmployeeDetail() {
                 setNotes(n);
               }}
               disabled={!newNote.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 self-end"
+              className="btn primary"
+              style={{ alignSelf: 'flex-end' }}
             >
               Add
             </button>
@@ -899,14 +970,15 @@ export default function EmployeeDetail() {
               {notes.map(note => (
                 <div key={note.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-3">
                   {editingNoteId === note.id ? (
-                    <div className="space-y-2">
+                    <div className="vstack" style={{ gap: 8 }}>
                       <textarea
                         value={editingNoteContent}
                         onChange={e => setEditingNoteContent(e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 dark:text-gray-200 resize-none"
+                        className="input"
+                        style={{ resize: 'none' }}
                       />
-                      <div className="flex gap-2">
+                      <div className="hstack" style={{ gap: 8 }}>
                         <button
                           onClick={async () => {
                             await api.updateEmployeeNote(note.id, editingNoteContent.trim());
@@ -915,13 +987,15 @@ export default function EmployeeDetail() {
                             setNotes(n);
                           }}
                           disabled={!editingNoteContent.trim()}
-                          className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-40"
+                          className="btn primary"
+                          style={{ padding: '4px 10px', fontSize: 12 }}
                         >
                           Save
                         </button>
                         <button
                           onClick={() => setEditingNoteId(null)}
-                          className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600"
+                          className="btn ghost"
+                          style={{ padding: '4px 10px', fontSize: 12 }}
                         >
                           Cancel
                         </button>
@@ -962,6 +1036,7 @@ export default function EmployeeDetail() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

@@ -503,6 +503,17 @@ export function refreshComputedFields(): void {
     UPDATE employees SET years_of_service = CAST((julianday('now') - julianday(doh)) / 365.25 AS INTEGER)
     WHERE doh IS NOT NULL
   `).run();
+
+  // Trim whitespace on categorical/lookup string fields so "Asian" and "Asian "
+  // don't show up as distinct groups in charts, filters, or reports.
+  const TRIM_FIELDS = [
+    'race', 'ethnicity', 'sex', 'country_of_origin', 'highest_education',
+    'current_department', 'current_position',
+  ];
+  for (const f of TRIM_FIELDS) {
+    db.prepare(`UPDATE employees SET ${f} = TRIM(${f}) WHERE ${f} IS NOT NULL AND ${f} != TRIM(${f})`).run();
+    db.prepare(`UPDATE employees SET ${f} = NULL WHERE ${f} = ''`).run();
+  }
 }
 
 export function getDb(): Database.Database {
@@ -686,10 +697,29 @@ export function getEmployee(id: number) {
   return db.prepare('SELECT e.*, s.shift_name, s.scheduled_in, s.scheduled_out, s.scheduled_lunch_start, s.scheduled_lunch_end, s.is_salary FROM employees e LEFT JOIN shifts s ON e.shift_id = s.id WHERE e.id = ?').get(id);
 }
 
+// Categorical string fields that must be trimmed on write so aggregation/filter
+// groupings stay clean (e.g. "Asian" vs "Asian ").
+const TRIM_ON_WRITE = new Set([
+  'race', 'ethnicity', 'sex', 'country_of_origin', 'highest_education',
+  'current_department', 'current_position',
+]);
+
+function normalizeEmployeeData(data: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = { ...data };
+  for (const k of Object.keys(out)) {
+    if (TRIM_ON_WRITE.has(k) && typeof out[k] === 'string') {
+      const trimmed = out[k].trim();
+      out[k] = trimmed === '' ? null : trimmed;
+    }
+  }
+  return out;
+}
+
 export function createEmployee(data: Record<string, any>) {
   // Filter out virtual/JOIN fields that don't exist on the employees table
   const virtualFields = ['shift_name', 'scheduled_in', 'scheduled_out', 'scheduled_lunch_start', 'scheduled_lunch_end', 'is_salary'];
   data = Object.fromEntries(Object.entries(data).filter(([k]) => !virtualFields.includes(k)));
+  data = normalizeEmployeeData(data);
 
   const cols = Object.keys(data);
   const placeholders = cols.map(() => '?').join(', ');
@@ -707,7 +737,7 @@ export function updateEmployee(id: number, data: Record<string, any>, changeSour
   for (const [k, v] of Object.entries(data)) {
     if (!virtualFields.includes(k)) filtered[k] = v;
   }
-  data = filtered;
+  data = normalizeEmployeeData(filtered);
 
   // Fetch old record to diff
   const old = db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as Record<string, any> | undefined;
@@ -1085,7 +1115,11 @@ export function getDashboardStats() {
   ).all();
 
   const raceBreakdown = db.prepare(
-    `SELECT race, COUNT(*) as count FROM employees WHERE ${ACTIVE_FILTER} AND race IS NOT NULL GROUP BY race`
+    `SELECT TRIM(race) as race, COUNT(*) as count
+     FROM employees
+     WHERE ${ACTIVE_FILTER} AND race IS NOT NULL AND TRIM(race) != ''
+     GROUP BY TRIM(race)
+     ORDER BY count DESC`
   ).all();
 
   const payByDept = db.prepare(

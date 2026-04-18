@@ -45,7 +45,10 @@ import {
   getAuthStatus, setPassword, unlockWithPassword, unlockWithTouchId,
   changePassword, setTouchIdEnabled,
 } from './auth';
-import { buildBugReport, saveBugReport, getGithubIssueUrl } from './bug-report';
+import {
+  buildBugReport, saveBugReport, getGithubIssueUrl,
+  submitBugReportViaRelay, isRelayConfigured,
+} from './bug-report';
 import { getLogTail } from './logger';
 
 export function registerIpcHandlers() {
@@ -540,4 +543,11 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle('bug:get-github-url', (_event, data: { description?: string; summary?: string }) =>
     getGithubIssueUrl(data));
+  ipcMain.handle('bug:relay-configured', () => isRelayConfigured());
+  ipcMain.handle('bug:submit-to-relay', async (_event, data: {
+    description: string;
+    email?: string;
+    stepsToReproduce?: string;
+    includeLogs?: boolean;
+  }) => submitBugReportViaRelay(data));
 }

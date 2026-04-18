@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import { getConfig } from './app-config';
 import { getLogTail, getLogPath } from './logger';
+import { BUG_RELAY_URL, BUG_RELAY_SECRET } from './bug-relay-config';
 
 const GITHUB_ISSUE_URL = 'https://github.com/ccowan93/hr-database/issues/new';
 
@@ -138,6 +139,62 @@ export async function saveBugReport(
     return { success: true, path: result.filePath };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to save report' };
+  }
+}
+
+export function isRelayConfigured(): boolean {
+  return !!(BUG_RELAY_URL && BUG_RELAY_SECRET);
+}
+
+export interface RelaySubmitResult {
+  success: boolean;
+  issueUrl?: string;
+  issueNumber?: number;
+  gistUrl?: string | null;
+  error?: string;
+}
+
+/**
+ * Submit the bug report to the Cloudflare Worker relay, which creates a GitHub
+ * issue using a server-side token and returns the issue URL. This lets end
+ * users file bugs without a GitHub account or repo access.
+ */
+export async function submitBugReportViaRelay(input: BugReportInput): Promise<RelaySubmitResult> {
+  if (!isRelayConfigured()) {
+    return { success: false, error: 'Bug-report relay is not configured in this build.' };
+  }
+  const report = buildBugReport(input);
+  const { installId } = getConfig();
+  const payload = { ...report, installId };
+
+  try {
+    const res = await fetch(`${BUG_RELAY_URL.replace(/\/$/, '')}/report`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-app-secret': BUG_RELAY_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({})) as {
+      ok?: boolean;
+      error?: string;
+      issueUrl?: string;
+      issueNumber?: number;
+      gistUrl?: string | null;
+    };
+    if (!res.ok || !data.issueUrl) {
+      return { success: false, error: data.error || `Relay returned HTTP ${res.status}` };
+    }
+    return {
+      success: true,
+      issueUrl: data.issueUrl,
+      issueNumber: data.issueNumber,
+      gistUrl: data.gistUrl ?? null,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `Network error reaching relay: ${msg}` };
   }
 }
 

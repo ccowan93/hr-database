@@ -6,3 +6,7 @@ release/
 *.sqlite-shm
 employee-photos/
 .DS_Store
+
+# Holds the bug-relay URL + shared secret — committed copy lives alongside as
+# bug-relay-config.example.ts.
+src/main/bug-relay-config.ts

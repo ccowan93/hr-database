@@ -6,36 +6,89 @@ interface Props {
   onClose: () => void;
 }
 
-type SubmitState = 'idle' | 'saving' | 'saved' | 'error';
+type SubmitState = 'idle' | 'opening' | 'saving' | 'submitting' | 'saved' | 'submitted' | 'error';
 
 export default function BugReportDialog({ open, onClose }: Props) {
   const [description, setDescription] = useState('');
   const [stepsToReproduce, setStepsToReproduce] = useState('');
-  const [email, setEmail] = useState('');
   const [includeLogs, setIncludeLogs] = useState(true);
   const [logPreview, setLogPreview] = useState<string>('');
   const [showLogs, setShowLogs] = useState(false);
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
+  const [relayAvailable, setRelayAvailable] = useState(false);
+  const [submitted, setSubmitted] = useState<{ issueUrl: string; issueNumber?: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setState('idle');
     setError(null);
     setSavedPath(null);
+    setSubmitted(null);
     api.bugGetLogTail(80).then(setLogPreview).catch(() => setLogPreview(''));
+    api.bugRelayConfigured().then(setRelayAvailable).catch(() => setRelayAvailable(false));
   }, [open]);
 
   if (!open) return null;
 
-  const handleSave = async () => {
+  const composedBody = () => {
+    const lines: string[] = [];
+    if (description.trim()) lines.push(description.trim());
+    if (stepsToReproduce.trim()) {
+      lines.push('');
+      lines.push('### Steps to reproduce');
+      lines.push(stepsToReproduce.trim());
+    }
+    return lines.join('\n');
+  };
+
+  const handleOpenGithubIssue = async () => {
+    setState('opening');
+    setError(null);
+    try {
+      const summary = description.split(/\r?\n/)[0]?.slice(0, 100) || 'Bug report';
+      const url = await api.bugGetGithubUrl({ description: composedBody(), summary });
+      await api.openReleasePage(url);
+      // Give GitHub a moment, then close
+      setTimeout(() => {
+        setState('idle');
+        onClose();
+      }, 400);
+    } catch (err: any) {
+      setState('error');
+      setError(err?.message || 'Failed to open GitHub issue');
+    }
+  };
+
+  const handleSubmitToRelay = async () => {
+    setState('submitting');
+    setError(null);
+    try {
+      const result = await api.bugSubmitToRelay({
+        description,
+        stepsToReproduce: stepsToReproduce || undefined,
+        includeLogs,
+      });
+      if (result.success && result.issueUrl) {
+        setSubmitted({ issueUrl: result.issueUrl, issueNumber: result.issueNumber });
+        setState('submitted');
+      } else {
+        setState('error');
+        setError(result.error || 'Failed to submit report');
+      }
+    } catch (err: any) {
+      setState('error');
+      setError(err?.message || 'Failed to submit report');
+    }
+  };
+
+  const handleSaveReport = async () => {
     setState('saving');
     setError(null);
     try {
       const result = await api.bugSaveReport({
         description,
-        email: email || undefined,
         stepsToReproduce: stepsToReproduce || undefined,
         includeLogs,
       });
@@ -56,92 +109,91 @@ export default function BugReportDialog({ open, onClose }: Props) {
     }
   };
 
-  const handleOpenGithubIssue = async () => {
-    const summary = description.split(/\r?\n/)[0]?.slice(0, 100) || 'Bug report';
-    const url = await api.bugGetGithubUrl({ description, summary });
-    await api.openReleasePage(url);
-  };
-
-  const disabled = state === 'saving' || description.trim().length === 0;
+  const busy = state === 'opening' || state === 'saving' || state === 'submitting';
+  const disabled = busy || description.trim().length === 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-700 flex items-start gap-3">
-          <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
+    <div
+      className="kin-modal-backdrop"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="kin-modal" style={{ maxWidth: 640, maxHeight: '90vh' }}>
+        <div className="kin-modal-head">
+          <div style={{ flex: 1 }}>
+            <h2 className="kin-modal-title">Report a bug</h2>
+            <div className="small muted">
+              {relayAvailable
+                ? 'Sends your report directly to the dev team — no GitHub account needed.'
+                : 'Opens a new issue in the GitHub repo with system info pre-filled.'}
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Report a bug</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Save a diagnostic bundle and optionally open a GitHub issue.</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <button onClick={onClose} className="icon-btn" aria-label="Close">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">What went wrong? <span className="text-red-500">*</span></label>
+        <div className="kin-modal-body">
+          <label className="field">
+            <span className="field-label">What went wrong? <span style={{ color: 'var(--danger)' }}>*</span></span>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="input"
+              style={{ resize: 'vertical' }}
               placeholder="Describe the problem. What did you expect to happen?"
             />
-          </div>
+          </label>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Steps to reproduce (optional)</label>
+          <label className="field">
+            <span className="field-label">Steps to reproduce (optional)</span>
             <textarea
               value={stepsToReproduce}
               onChange={e => setStepsToReproduce(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="input"
+              style={{ resize: 'vertical' }}
               placeholder={'1. Go to…\n2. Click…\n3. See error'}
             />
+          </label>
+
+          <div className="kin-alert info">
+            <div className="kin-alert-title">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {relayAvailable ? 'Submitted directly to the dev team' : 'GitHub will open in your browser'}
+            </div>
+            <div className="small" style={{ marginTop: 4 }}>
+              {relayAvailable
+                ? 'Your report, system info, config snapshot, and recent logs are sent securely. A GitHub issue is created on your behalf — no account required. No employee data is included.'
+                : 'Your description and steps are pre-filled, along with app version, platform, and OS. You can review and edit before submitting. No employee data is sent.'}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact email (optional)</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="So we can follow up if needed"
-            />
-          </div>
-
-          <label className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900/40 rounded-lg border border-gray-200 dark:border-gray-700">
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', fontSize: 13, color: 'var(--ink-2)' }}>
             <input
               type="checkbox"
               checked={includeLogs}
               onChange={e => setIncludeLogs(e.target.checked)}
-              className="mt-0.5 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              style={{ marginTop: 2 }}
             />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Include app logs</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Attaches the last ~400 log lines (app version, OS, errors). Employee data is not included.
-              </p>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>Include app logs in saved report</div>
+              <div className="small muted">
+                If you save a diagnostic bundle below, it will include the last ~400 log lines. Logs are <strong>not</strong> attached to the GitHub issue automatically.
+              </div>
               <button
                 type="button"
                 onClick={() => setShowLogs(v => !v)}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                style={{ background: 'none', border: 0, padding: 0, marginTop: 4, color: 'var(--accent-ink)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
               >
                 {showLogs ? 'Hide' : 'Preview'} recent logs
               </button>
               {showLogs && (
-                <pre className="mt-2 max-h-48 overflow-auto text-xs bg-gray-900 text-gray-100 p-2 rounded">
+                <pre className="mono" style={{ marginTop: 8, maxHeight: 192, overflow: 'auto', fontSize: 11, background: 'var(--surface-2)', color: 'var(--ink)', padding: 8, borderRadius: 'var(--radius-sm)', border: '1px solid var(--line)' }}>
 {logPreview || '(no logs yet)'}
                 </pre>
               )}
@@ -149,42 +201,75 @@ export default function BugReportDialog({ open, onClose }: Props) {
           </label>
 
           {state === 'saved' && savedPath && (
-            <div className="px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
-              Report saved to <span className="font-mono text-xs break-all">{savedPath}</span>
+            <div className="kin-alert" style={{ borderColor: 'var(--success)' }}>
+              <div className="kin-alert-title" style={{ color: 'var(--success)' }}>Report saved</div>
+              <div className="small mono" style={{ wordBreak: 'break-all' }}>{savedPath}</div>
+              <div className="small muted" style={{ marginTop: 4 }}>You can attach this file to the GitHub issue.</div>
+            </div>
+          )}
+          {state === 'submitted' && submitted && (
+            <div className="kin-alert" style={{ borderColor: 'var(--success)' }}>
+              <div className="kin-alert-title" style={{ color: 'var(--success)' }}>
+                Report submitted{submitted.issueNumber ? ` (#${submitted.issueNumber})` : ''}
+              </div>
+              <div className="small" style={{ marginTop: 4 }}>
+                Thanks — the dev team has been notified.{' '}
+                <a
+                  href={submitted.issueUrl}
+                  onClick={e => { e.preventDefault(); api.openReleasePage(submitted.issueUrl); }}
+                  style={{ color: 'var(--accent-ink)', textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  View issue
+                </a>
+              </div>
             </div>
           )}
           {state === 'error' && error && (
-            <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
-              {error}
+            <div className="kin-alert danger">
+              <div className="kin-alert-title">Error</div>
+              <div className="small">{error}</div>
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2 justify-between">
-          <button
-            type="button"
-            onClick={handleOpenGithubIssue}
-            className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-          >
-            Open GitHub issue…
-          </button>
+        <div className="kin-modal-foot" style={{ justifyContent: 'space-between' }}>
+          {state === 'submitted' ? (
+            <span />
+          ) : (
+            <button
+              type="button"
+              onClick={handleSaveReport}
+              disabled={busy}
+              className="btn ghost"
+            >
+              {state === 'saving' ? 'Saving…' : 'Save diagnostic bundle'}
+            </button>
+          )}
 
-          <div className="flex gap-2">
+          <div className="hstack" style={{ gap: 8 }}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="btn ghost"
             >
-              Close
+              {state === 'submitted' ? 'Close' : 'Cancel'}
             </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={disabled}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {state === 'saving' ? 'Saving…' : 'Save report…'}
-            </button>
+            {state !== 'submitted' && (
+              <button
+                type="button"
+                onClick={relayAvailable ? handleSubmitToRelay : handleOpenGithubIssue}
+                disabled={disabled}
+                className="btn primary"
+              >
+                {state === 'submitting'
+                  ? 'Submitting…'
+                  : state === 'opening'
+                    ? 'Opening…'
+                    : relayAvailable
+                      ? 'Submit bug report'
+                      : 'Open GitHub issue'}
+              </button>
+            )}
           </div>
         </div>
       </div>

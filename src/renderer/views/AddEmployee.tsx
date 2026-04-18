@@ -13,13 +13,20 @@ export default function AddEmployee() {
   };
 
   return (
-    <div>
-      <button onClick={() => navigate('/employees')} className="text-sm text-blue-600 hover:underline mb-2 inline-block">
-        &larr; Back to Employees
-      </button>
-      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Add New Employee</h2>
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-        <EmployeeForm onSave={handleSave} onCancel={() => navigate('/employees')} />
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <button onClick={() => navigate('/employees')} className="btn ghost" style={{ padding: '2px 0', marginBottom: 6 }}>
+            ← Back to People
+          </button>
+          <h1 className="page-title">Add employee</h1>
+          <p className="page-subtitle">Create a new employee record</p>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-body">
+          <EmployeeForm onSave={handleSave} onCancel={() => navigate('/employees')} />
+        </div>
       </div>
     </div>
   );

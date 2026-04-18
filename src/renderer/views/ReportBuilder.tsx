@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
+import ComboSelect from '../components/ComboSelect';
 import type { Employee } from '../types/employee';
 
 const ALL_COLUMNS = [
@@ -217,200 +218,211 @@ export default function ReportBuilder() {
   const aggLabel = AGGREGATIONS.find(a => a.key === aggregation)?.label || aggregation;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Report Builder</h2>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Report builder</h1>
+          <p className="page-subtitle">Build and export custom employee reports</p>
+        </div>
         {reportGenerated && (
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
-          >
-            Export to Excel
-          </button>
+          <button onClick={handleExport} className="btn accent">Export to Excel</button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+      <div className="grid-2" style={{ gridTemplateColumns: '320px 1fr', alignItems: 'flex-start' }}>
         {/* Config Panel */}
-        <div className="xl:col-span-1 space-y-4">
-          {/* Saved Reports */}
+        <div className="vstack" style={{ gap: 14 }}>
           {savedReports.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Saved Reports</h3>
-              <div className="space-y-1">
-                {savedReports.map(r => (
-                  <div key={r.name} className="flex items-center justify-between">
-                    <button
-                      onClick={() => loadReport(r)}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
-                    >
-                      {r.name}
-                    </button>
-                    <button
-                      onClick={() => deleteReport(r.name)}
-                      className="text-xs text-red-500 hover:underline ml-2"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
+            <div className="section-card">
+              <div className="section-head"><h3 className="section-title">Saved reports</h3></div>
+              <div className="section-body">
+                <div className="vstack" style={{ gap: 6 }}>
+                  {savedReports.map(r => (
+                    <div key={r.name} className="flex-between">
+                      <button
+                        onClick={() => loadReport(r)}
+                        className="btn ghost"
+                        style={{ padding: '2px 4px', color: 'var(--accent-ink)' }}
+                      >
+                        {r.name}
+                      </button>
+                      <button onClick={() => deleteReport(r.name)} className="btn ghost small" style={{ color: 'var(--danger)', padding: '2px 4px' }}>
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Column Selection */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Columns</h3>
-              <div className="flex gap-2">
-                <button onClick={selectAllCols} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">All</button>
-                <button onClick={clearAllCols} className="text-xs text-red-500 hover:underline">None</button>
+          <div className="section-card">
+            <div className="section-head">
+              <h3 className="section-title">Columns</h3>
+              <div className="hstack" style={{ gap: 8 }}>
+                <button onClick={selectAllCols} className="btn ghost small" style={{ padding: '2px 6px' }}>All</button>
+                <button onClick={clearAllCols} className="btn ghost small" style={{ padding: '2px 6px', color: 'var(--danger)' }}>None</button>
               </div>
             </div>
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {ALL_COLUMNS.map(col => (
-                <label key={col.key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 py-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={selectedCols.includes(col.key)}
-                    onChange={() => toggleCol(col.key)}
-                    className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600"
+            <div className="section-body">
+              <div className="vstack" style={{ gap: 2, maxHeight: 260, overflow: 'auto' }}>
+                {ALL_COLUMNS.map(col => (
+                  <label key={col.key} className="hstack" style={{ gap: 8, padding: '4px 6px', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="checkbox" checked={selectedCols.includes(col.key)} onChange={() => toggleCol(col.key)} />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-head"><h3 className="section-title">Filters</h3></div>
+            <div className="section-body vstack" style={{ gap: 10 }}>
+              <label className="field">
+                <span className="field-label">Department</span>
+                <ComboSelect
+                  value={filterDept}
+                  options={departments}
+                  onChange={setFilterDept}
+                  includeNone={true}
+                  noneLabel="All departments"
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Status</span>
+                <ComboSelect
+                  value={filterStatus}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'archived', label: 'Archived' },
+                    { value: 'all', label: 'All' },
+                  ]}
+                  onChange={v => setFilterStatus(v || 'active')}
+                  includeNone={false}
+                  searchable={false}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-head"><h3 className="section-title">Grouping &amp; aggregation</h3></div>
+            <div className="section-body vstack" style={{ gap: 10 }}>
+              <label className="field">
+                <span className="field-label">Group by</span>
+                <ComboSelect
+                  value={groupBy}
+                  options={GROUP_BY_FIELDS.filter(g => g.key !== '').map(g => ({ value: g.key, label: g.label }))}
+                  onChange={setGroupBy}
+                  includeNone={true}
+                  noneLabel="No Grouping"
+                />
+              </label>
+              {groupBy && (
+                <>
+                  <label className="field">
+                    <span className="field-label">Aggregation</span>
+                    <ComboSelect
+                      value={aggregation}
+                      options={AGGREGATIONS.map(a => ({ value: a.key, label: a.label }))}
+                      onChange={v => setAggregation(v || 'count')}
+                      includeNone={false}
+                      searchable={false}
+                    />
+                  </label>
+                  {aggregation !== 'count' && (
+                    <label className="field">
+                      <span className="field-label">Aggregate field</span>
+                      <ComboSelect
+                        value={aggregationField}
+                        options={ALL_COLUMNS.filter(c => c.type === 'number').map(c => ({ value: c.key, label: c.label }))}
+                        onChange={v => setAggregationField(v || 'current_pay_rate')}
+                        includeNone={false}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-head"><h3 className="section-title">Sort</h3></div>
+            <div className="section-body">
+              <div className="hstack" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+                  <ComboSelect
+                    value={sortBy}
+                    options={ALL_COLUMNS.map(c => ({ value: c.key, label: c.label }))}
+                    onChange={v => setSortBy(v || 'employee_name')}
+                    includeNone={false}
                   />
-                  {col.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Filters</h3>
-            <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Department</label>
-              <select value={filterDept} onChange={e => setFilterDept(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">All Departments</option>
-                {departments.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Status</label>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Group By */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Grouping & Aggregation</h3>
-            <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Group By</label>
-              <select value={groupBy} onChange={e => setGroupBy(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {GROUP_BY_FIELDS.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
-              </select>
-            </div>
-            {groupBy && (
-              <>
-                <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Aggregation</label>
-                  <select value={aggregation} onChange={e => setAggregation(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {AGGREGATIONS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-                  </select>
                 </div>
-                {aggregation !== 'count' && (
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Aggregate Field</label>
-                    <select value={aggregationField} onChange={e => setAggregationField(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      {ALL_COLUMNS.filter(c => c.type === 'number').map(c => (
-                        <option key={c.key} value={c.key}>{c.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Sort */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Sort</h3>
-            <div className="flex flex-wrap gap-2">
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {ALL_COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-              </select>
-              <select value={sortDir} onChange={e => setSortDir(e.target.value as any)} className="min-w-0 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="ASC">Ascending</option>
-                <option value="DESC">Descending</option>
-              </select>
+                <div style={{ minWidth: 0, flex: '0 0 140px' }}>
+                  <ComboSelect
+                    value={sortDir}
+                    options={[{ value: 'ASC', label: 'Ascending' }, { value: 'DESC', label: 'Descending' }]}
+                    onChange={v => setSortDir((v || 'ASC') as 'ASC' | 'DESC')}
+                    includeNone={false}
+                    searchable={false}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
           <button
             onClick={generateReport}
             disabled={loading || selectedCols.length === 0}
-            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="btn primary"
+            style={{ width: '100%', justifyContent: 'center', padding: '9px 13px' }}
           >
-            {loading ? 'Generating...' : 'Generate Report'}
+            {loading ? 'Generating…' : 'Generate report'}
           </button>
 
-          {/* Save Report */}
-          <div className="flex gap-2">
+          <div className="hstack" style={{ gap: 8 }}>
             <input
               type="text"
+              className="input"
+              style={{ flex: 1 }}
               value={reportName}
               onChange={e => setReportName(e.target.value)}
-              placeholder="Report name..."
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Report name…"
             />
-            <button
-              onClick={handleSaveReport}
-              disabled={!reportName.trim()}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-            >
-              Save
-            </button>
+            <button onClick={handleSaveReport} disabled={!reportName.trim()} className="btn">Save</button>
           </div>
         </div>
 
         {/* Results */}
-        <div className="xl:col-span-3">
+        <div>
           {!reportGenerated ? (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-12 text-center">
-              <p className="text-gray-400 dark:text-gray-500 text-lg">Select columns and filters, then click Generate Report</p>
+            <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+              <p className="muted" style={{ fontSize: 15, margin: 0 }}>Select columns and filters, then click Generate report</p>
             </div>
           ) : groupedData ? (
-            /* Grouped results */
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div className="card-head">
+                <span className="small muted">
                   Grouped by {GROUP_BY_FIELDS.find(g => g.key === groupBy)?.label} — {employees.length} total records — {groupedData.length} groups
                 </span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div style={{ overflowX: 'auto' }}>
+                <table className="kin-table">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">
-                        {GROUP_BY_FIELDS.find(g => g.key === groupBy)?.label}
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Count</th>
-                      {aggregation !== 'count' && (
-                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">
-                          {aggLabel} of {aggFieldLabel}
-                        </th>
-                      )}
+                    <tr>
+                      <th>{GROUP_BY_FIELDS.find(g => g.key === groupBy)?.label}</th>
+                      <th>Count</th>
+                      {aggregation !== 'count' && <th>{aggLabel} of {aggFieldLabel}</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {groupedData.map((row, i) => (
-                      <tr key={i} className="border-b border-gray-100 dark:border-gray-700">
-                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{row._group}</td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row._count}</td>
+                      <tr key={i}>
+                        <td style={{ fontWeight: 500 }}>{row._group}</td>
+                        <td className="muted">{row._count}</td>
                         {aggregation !== 'count' && (
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          <td className="muted">
                             {row._agg != null ? (
                               aggregationField.includes('pay') || aggregationField.includes('Pay')
                                 ? `$${row._agg.toFixed(2)}`
@@ -425,38 +437,31 @@ export default function ReportBuilder() {
               </div>
             </div>
           ) : (
-            /* Flat results */
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{employees.length} records</span>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div className="card-head">
+                <span className="small muted">{employees.length} records</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div style={{ overflowX: 'auto' }}>
+                <table className="kin-table">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <tr>
                       {selectedCols.map(key => {
                         const col = ALL_COLUMNS.find(c => c.key === key);
-                        return (
-                          <th key={key} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                            {col?.label || key}
-                          </th>
-                        );
+                        return <th key={key} style={{ whiteSpace: 'nowrap' }}>{col?.label || key}</th>;
                       })}
                     </tr>
                   </thead>
                   <tbody>
                     {employees.map(emp => (
-                      <tr key={emp.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                      <tr key={emp.id}>
                         {selectedCols.map(key => (
-                          <td key={key} className="px-4 py-3 text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                            {formatValue(key, (emp as any)[key])}
-                          </td>
+                          <td key={key} style={{ whiteSpace: 'nowrap' }}>{formatValue(key, (emp as any)[key])}</td>
                         ))}
                       </tr>
                     ))}
                     {employees.length === 0 && (
                       <tr>
-                        <td colSpan={selectedCols.length} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                        <td colSpan={selectedCols.length} className="muted" style={{ textAlign: 'center', padding: 48 }}>
                           No records match the selected filters.
                         </td>
                       </tr>
