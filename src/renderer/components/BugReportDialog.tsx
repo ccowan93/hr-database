@@ -181,9 +181,11 @@ export default function BugReportDialog({ open, onClose }: Props) {
               style={{ marginTop: 2 }}
             />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>Include app logs in saved report</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>Include app logs</div>
               <div className="small muted">
-                If you save a diagnostic bundle below, it will include the last ~400 log lines. Logs are <strong>not</strong> attached to the GitHub issue automatically.
+                {relayAvailable
+                  ? <>The last ~400 log lines are uploaded as a private gist and linked from the GitHub issue. Also included in a saved diagnostic bundle if you choose to save one.</>
+                  : <>If you save a diagnostic bundle below, it will include the last ~400 log lines. Logs are <strong>not</strong> attached to the GitHub issue automatically.</>}
               </div>
               <button
                 type="button"
