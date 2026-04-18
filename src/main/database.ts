@@ -34,26 +34,46 @@ function isPlaintextSqliteFile(dbPath: string): boolean {
   }
 }
 
-/** Migrate a plaintext SQLite database at dbPath to SQLCipher encrypted using keyHex. */
+/** Migrate a plaintext SQLite database at dbPath to an encrypted database using keyHex.
+ *
+ * Copies the plaintext file, rekeys the copy (sqlite3mc encrypts an unencrypted
+ * database on rekey), verifies, then atomically replaces the original. Avoids
+ * sqlcipher_export(), which is only registered when cipher='sqlcipher'.
+ */
 function migratePlaintextToEncrypted(dbPath: string, keyHex: string): void {
   const tmpEnc = dbPath + '.enc-migrating';
   try { fs.unlinkSync(tmpEnc); } catch (_) {}
   try { fs.unlinkSync(tmpEnc + '-wal'); } catch (_) {}
   try { fs.unlinkSync(tmpEnc + '-shm'); } catch (_) {}
 
-  const plain = new Database(dbPath);
-  try {
-    plain.exec('PRAGMA wal_checkpoint(TRUNCATE)');
-  } catch (_) {}
-  try {
-    plain.exec(`ATTACH DATABASE '${tmpEnc.replace(/'/g, "''")}' AS encrypted KEY "${quoteSqlcipherKey(keyHex)}"`);
-    plain.exec(`SELECT sqlcipher_export('encrypted')`);
-    plain.exec('DETACH DATABASE encrypted');
-  } finally {
+  // Checkpoint WAL so the file copy captures all committed data.
+  {
+    const plain = new Database(dbPath);
+    try { plain.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
     plain.close();
   }
 
-  // Remove old plaintext files and replace with encrypted version
+  fs.copyFileSync(dbPath, tmpEnc);
+
+  // Rekey the copy: on an unencrypted DB, sqlite3mc interprets this as
+  // "add encryption using the given key".
+  const copy = new Database(tmpEnc);
+  try {
+    copy.pragma(`rekey = "${quoteSqlcipherKey(keyHex)}"`);
+  } finally {
+    copy.close();
+  }
+
+  // Verify the rekey by opening with the key and touching the schema.
+  const verify = new Database(tmpEnc);
+  try {
+    verify.pragma(`key = "${quoteSqlcipherKey(keyHex)}"`);
+    verify.prepare('SELECT count(*) FROM sqlite_master').get();
+  } finally {
+    verify.close();
+  }
+
+  // Replace original with encrypted version.
   try { fs.unlinkSync(dbPath); } catch (_) {}
   try { fs.unlinkSync(dbPath + '-wal'); } catch (_) {}
   try { fs.unlinkSync(dbPath + '-shm'); } catch (_) {}
