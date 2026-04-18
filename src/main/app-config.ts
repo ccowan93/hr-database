@@ -21,6 +21,17 @@ export interface AppConfig {
     dayShiftStart: string;
     nightShiftStart: string;
   };
+  auth: {
+    passwordHash: string | null;
+    salt: string | null;
+    iterations: number;
+    touchIdEnabled: boolean;
+    kekSalt: string | null;
+    dekCiphertext: string | null;
+    dekIv: string | null;
+    dekTag: string | null;
+    dekSafeStorage: string | null;
+  };
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -42,6 +53,17 @@ const DEFAULT_CONFIG: AppConfig = {
     dayShiftStart: '07:00',
     nightShiftStart: '19:00',
   },
+  auth: {
+    passwordHash: null,
+    salt: null,
+    iterations: 210000,
+    touchIdEnabled: false,
+    kekSalt: null,
+    dekCiphertext: null,
+    dekIv: null,
+    dekTag: null,
+    dekSafeStorage: null,
+  },
 };
 
 let config: AppConfig = { ...DEFAULT_CONFIG };
@@ -62,6 +84,7 @@ export function loadConfig(): AppConfig {
         onedrive: { ...DEFAULT_CONFIG.onedrive, ...data.onedrive },
         localBackup: { ...DEFAULT_CONFIG.localBackup, ...data.localBackup },
         shifts: { ...DEFAULT_CONFIG.shifts, ...data.shifts },
+        auth: { ...DEFAULT_CONFIG.auth, ...data.auth },
       };
     }
   } catch (err) {
@@ -80,6 +103,9 @@ export function saveConfig(updates: Partial<AppConfig>): AppConfig {
   }
   if (updates.shifts) {
     config.shifts = { ...config.shifts, ...updates.shifts };
+  }
+  if (updates.auth) {
+    config.auth = { ...config.auth, ...updates.auth };
   }
   try {
     fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));

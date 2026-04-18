@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useTheme } from '../context/ThemeContext';
+import BugReportDialog from '../components/BugReportDialog';
 
 interface OneDriveStatus {
   connected: boolean;
@@ -669,6 +670,12 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Security */}
+        <SecuritySection />
+
+        {/* Support */}
+        <SupportSection />
+
         {/* Danger Zone */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-800 shadow-sm p-6">
           <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-1">Danger Zone</h3>
@@ -751,6 +758,177 @@ export default function Settings() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SecuritySection() {
+  const [status, setStatus] = useState<{ configured: boolean; touchIdAvailable: boolean; touchIdEnabled: boolean; encryptionReady: boolean } | null>(null);
+  const [showChange, setShowChange] = useState(false);
+  const [oldPw, setOldPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [touchIdPw, setTouchIdPw] = useState('');
+  const [askTouchIdPassword, setAskTouchIdPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const refresh = () => { api.authGetStatus().then(setStatus).catch(() => {}); };
+  useEffect(() => { refresh(); }, []);
+
+  const handleChangePassword = async () => {
+    setMessage(null);
+    if (newPw.length < 6) { setMessage({ type: 'error', text: 'New password must be at least 6 characters' }); return; }
+    if (newPw !== confirmPw) { setMessage({ type: 'error', text: 'Passwords do not match' }); return; }
+    setBusy(true);
+    try {
+      const result = await api.authChangePassword(oldPw, newPw);
+      if (result.ok) {
+        setMessage({ type: 'success', text: 'Password updated' });
+        setShowChange(false);
+        setOldPw(''); setNewPw(''); setConfirmPw('');
+      } else {
+        setMessage({ type: 'error', text: result.error || 'Failed to change password' });
+      }
+    } finally { setBusy(false); }
+  };
+
+  const handleToggleTouchId = async (enable: boolean) => {
+    setMessage(null);
+    if (enable) {
+      setAskTouchIdPassword(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.authSetTouchIdEnabled(false);
+      if (result.ok) { setMessage({ type: 'success', text: 'Touch ID disabled' }); refresh(); }
+      else setMessage({ type: 'error', text: result.error || 'Failed' });
+    } finally { setBusy(false); }
+  };
+
+  const confirmEnableTouchId = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.authSetTouchIdEnabled(true, touchIdPw);
+      if (result.ok) {
+        setMessage({ type: 'success', text: 'Touch ID enabled' });
+        setAskTouchIdPassword(false);
+        setTouchIdPw('');
+        refresh();
+      } else {
+        setMessage({ type: 'error', text: result.error || 'Failed' });
+      }
+    } finally { setBusy(false); }
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Security</h3>
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        The database is encrypted at rest with a key derived from your app password{status.encryptionReady ? ' and AES-256-GCM.' : '.'}
+      </p>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
+        <div>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">App Password</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Required every time the app launches.</p>
+        </div>
+        <button
+          onClick={() => { setShowChange(v => !v); setMessage(null); }}
+          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium"
+        >
+          {showChange ? 'Cancel' : 'Change'}
+        </button>
+      </div>
+
+      {showChange && (
+        <div className="py-3 space-y-3">
+          <input type="password" placeholder="Current password" value={oldPw} onChange={e => setOldPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="current-password" />
+          <input type="password" placeholder="New password" value={newPw} onChange={e => setNewPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="new-password" />
+          <input type="password" placeholder="Confirm new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoComplete="new-password" />
+          <button onClick={handleChangePassword} disabled={busy || !oldPw || !newPw} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+            {busy ? 'Updating…' : 'Update password'}
+          </button>
+        </div>
+      )}
+
+      {status.touchIdAvailable && (
+        <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
+          <div>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Touch ID Unlock</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {status.touchIdEnabled ? 'Enabled — unlock with your fingerprint.' : 'Use your fingerprint instead of typing your password.'}
+            </p>
+          </div>
+          <button
+            onClick={() => handleToggleTouchId(!status.touchIdEnabled)}
+            disabled={busy}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${status.touchIdEnabled ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+          >
+            {status.touchIdEnabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+      )}
+
+      {askTouchIdPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAskTouchIdPassword(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-[420px] p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Confirm password</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Enter your password to enable Touch ID unlock.</p>
+            <input type="password" value={touchIdPw} onChange={e => setTouchIdPw(e.target.value)} className="w-full px-3 py-2 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setAskTouchIdPassword(false); setTouchIdPw(''); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
+              <button onClick={confirmEnableTouchId} disabled={busy || !touchIdPw} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+                {busy ? 'Enabling…' : 'Enable Touch ID'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupportSection() {
+  const [showReport, setShowReport] = useState(false);
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Support</h3>
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Save a diagnostic bundle you can send to the developer to help fix an issue.</p>
+      <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
+        <div>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Report a bug</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Collects app version, OS details, and recent logs. No employee data is included.</p>
+        </div>
+        <button
+          onClick={() => setShowReport(true)}
+          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium"
+        >
+          Report bug…
+        </button>
+      </div>
+      <BugReportDialog open={showReport} onClose={() => setShowReport(false)} />
     </div>
   );
 }

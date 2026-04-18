@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getDbPath, getDb } from './database';
+import { getDbPath, getDb, getActiveKeyHex } from './database';
 import { getConfig, saveConfig } from './app-config';
 
 export function runLocalBackup(): { success: boolean; path?: string; error?: string } {
@@ -85,6 +85,7 @@ export function listLocalBackups(): { name: string; path: string; size: number; 
 }
 
 export function restoreLocalBackup(backupPath: string): { success: boolean; error?: string } {
+  const keyHex = getActiveKeyHex();
   try {
     if (!fs.existsSync(backupPath)) {
       return { success: false, error: 'Backup file not found.' };
@@ -100,15 +101,15 @@ export function restoreLocalBackup(backupPath: string): { success: boolean; erro
     try { fs.unlinkSync(dbPath + '-shm'); } catch (_) {}
 
     const { initDatabase } = require('./database');
-    initDatabase();
+    initDatabase(keyHex || undefined);
 
     return { success: true };
   } catch (err: any) {
     try {
       const { initDatabase } = require('./database');
-      initDatabase();
+      initDatabase(keyHex || undefined);
     } catch (_) {}
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || 'Restore failed. The backup file may be from a different device or encrypted with a different password.' };
   }
 }
 

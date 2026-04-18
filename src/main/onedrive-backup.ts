@@ -3,7 +3,7 @@ import { BrowserWindow, net } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { getDbPath, getDb } from './database';
+import { getDbPath, getDb, getActiveKeyHex } from './database';
 import { getConfig, saveConfig } from './app-config';
 
 // Azure AD app registration for HR Database
@@ -383,6 +383,7 @@ export async function downloadBackupFile(fileId: string): Promise<{ success: boo
     });
 
     // Close current DB, write new file, reinitialize
+    const keyHex = getActiveKeyHex();
     const db = getDb();
     db.close();
 
@@ -392,18 +393,19 @@ export async function downloadBackupFile(fileId: string): Promise<{ success: boo
     try { fs.unlinkSync(dbPath + '-wal'); } catch (_) {}
     try { fs.unlinkSync(dbPath + '-shm'); } catch (_) {}
 
-    // Reinitialize database
+    // Reinitialize database with the active key
     const { initDatabase } = require('./database');
-    initDatabase();
+    initDatabase(keyHex || undefined);
 
     return { success: true };
   } catch (err: any) {
     // Try to reinitialize DB even on failure
     try {
+      const keyHex = getActiveKeyHex();
       const { initDatabase } = require('./database');
-      initDatabase();
+      initDatabase(keyHex || undefined);
     } catch (_) {}
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || 'Restore failed. The backup may be from a different install.' };
   }
 }
 
