@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "tsc -p tsconfig.node.json && electron .",
+    "dev:electron": "node scripts/write-bug-relay-config.js && tsc -p tsconfig.node.json && electron .",
+    "prebuild": "node scripts/write-bug-relay-config.js",
     "build": "tsc -p tsconfig.node.json && vite build",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win",
